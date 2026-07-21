@@ -1,6 +1,7 @@
 [package]
 name = "dictum"
 version = "0.1.0"
+default-run = "dictum"
 description = "Open-source, local-first, system-wide voice dictation"
 authors = ["Dictum contributors"]
 license = "MIT"
