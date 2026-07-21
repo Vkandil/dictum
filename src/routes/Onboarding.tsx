@@ -32,6 +32,17 @@ function friendlyDictationError(error: unknown, errorCode?: string): string {
   return message;
 }
 
+function friendlyShortcutError(error: unknown): string {
+  const message = String(error).replace(/^Error:\s*/i, "");
+  if (/os error 2|fichier spécifié est introuvable|file specified cannot be found/i.test(message)) {
+    return "Windows could not register this shortcut. Choose another suggestion and try again.";
+  }
+  if (/already registered|conflict/i.test(message)) {
+    return "This shortcut is already used by Dictum, Windows, or another application. Choose another one.";
+  }
+  return `Dictum could not save this shortcut: ${message}`;
+}
+
 export default function Onboarding({ initial, platform, devices = [], hasOpenRouterKey = false, onComplete }: OnboardingProps) {
   const [step, setStep] = useState(() => {
     if ("__TAURI_INTERNALS__" in window) return 0;
@@ -110,7 +121,7 @@ export default function Onboarding({ initial, platform, devices = [], hasOpenRou
       await saveSettings({ ...settings, onboardingComplete: false });
       next();
     } catch (error) {
-      setSetupError(friendlyDictationError(error));
+      setSetupError(friendlyShortcutError(error));
     } finally {
       setSavingStep(false);
     }
@@ -152,7 +163,7 @@ export default function Onboarding({ initial, platform, devices = [], hasOpenRou
       setSetupError("");
     } catch (error) {
       setHotkeyStatus("");
-      setSetupError(friendlyDictationError(error));
+      setSetupError(friendlyShortcutError(error));
     }
   };
 

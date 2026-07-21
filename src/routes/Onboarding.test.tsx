@@ -98,6 +98,19 @@ describe("onboarding", () => {
     expect(screen.queryByText(/No speech was detected/i)).not.toBeInTheDocument();
   });
 
+  it("reports shortcut save failures as shortcut errors instead of microphone errors", async () => {
+    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" hasOpenRouterKey onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    bridge.saveSettings.mockRejectedValueOnce(new Error("Le fichier spécifié est introuvable. (os error 2)"));
+
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+
+    expect(await screen.findByText(/Windows could not register this shortcut/i)).toBeInTheDocument();
+    expect(screen.queryByText(/selected microphone/i)).not.toBeInTheDocument();
+  });
+
   it("shows live microphone activity and explains provider quota separately", async () => {
     render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));

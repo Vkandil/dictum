@@ -114,22 +114,27 @@ pub fn save_settings(
         let _ = hotkey::register(&app, &previous);
         return Err(display(error));
     }
-    let autostart = if settings.autostart {
-        app.autolaunch().enable()
-    } else {
-        app.autolaunch().disable()
-    };
-    if let Err(error) = autostart {
-        let _ = hotkey::register(&app, &previous);
-        return Err(display(error));
-    }
-    if let Err(error) = state.store.save_settings(&settings) {
-        let _ = hotkey::register(&app, &previous);
-        let _ = if previous.autostart {
+    let autostart_changed = settings.autostart != previous.autostart;
+    if autostart_changed {
+        let autostart = if settings.autostart {
             app.autolaunch().enable()
         } else {
             app.autolaunch().disable()
         };
+        if let Err(error) = autostart {
+            let _ = hotkey::register(&app, &previous);
+            return Err(display(error));
+        }
+    }
+    if let Err(error) = state.store.save_settings(&settings) {
+        let _ = hotkey::register(&app, &previous);
+        if autostart_changed {
+            let _ = if previous.autostart {
+                app.autolaunch().enable()
+            } else {
+                app.autolaunch().disable()
+            };
+        }
         return Err(display(error));
     }
     state
