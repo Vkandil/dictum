@@ -29,7 +29,7 @@ pub struct Transcript {
 pub enum TranscribeError {
     #[error("API key rejected")]
     InvalidKey,
-    #[error("provider quota exhausted")]
+    #[error("the provider accepted your API key but reported no available credits or spending quota; add credits, raise the provider spending limit, or choose a local provider")]
     Quota,
     #[error("provider rate limit reached; try again shortly")]
     RateLimited,

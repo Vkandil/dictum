@@ -703,10 +703,7 @@ pub fn open_permissions(kind: String) -> Result<(), String> {
             }
             _ => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
         };
-        std::process::Command::new("open")
-            .arg(url)
-            .spawn()
-            .map_err(display)?;
+        tauri_plugin_opener::open_url(url, None::<&str>).map_err(display)?;
     }
     #[cfg(windows)]
     {
@@ -715,10 +712,7 @@ pub fn open_permissions(kind: String) -> Result<(), String> {
         } else {
             "ms-settings:easeofaccess-keyboard"
         };
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .spawn()
-            .map_err(display)?;
+        tauri_plugin_opener::open_url(url, None::<&str>).map_err(display)?;
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
