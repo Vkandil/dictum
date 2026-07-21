@@ -26,6 +26,12 @@
   <a href="#troubleshooting">Help</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Vkandil/dictum/releases/latest"><img alt="Download Dictum for Windows" src="https://img.shields.io/badge/Download-Windows%2010%20%7C%2011-2563EB?style=for-the-badge&logo=windows11&logoColor=white" /></a>
+</p>
+
+<p align="center"><sub>Free · Windows 10 &amp; 11 · installs in about a minute</sub></p>
+
 > [!IMPORTANT]
 > Dictum 1.0 is a Windows-only desktop application. The supported target is 64-bit Windows 10 or Windows 11. The repository intentionally does not build or publish packages for other operating systems.
 
@@ -94,8 +100,8 @@ Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Se
 
 ## Download and install
 
-1. Open the repository's **Releases** page.
-2. Download the latest Windows installer:
+1. Go to the **[latest release](https://github.com/Vkandil/dictum/releases/latest)**.
+2. Under **Assets**, download the Windows installer:
    - `Dictum_*_x64-setup.exe` is the recommended per-user installer.
    - `Dictum_*_x64_en-US.msi` is available for managed Windows deployment.
 3. Verify the release checksum if one is provided.
