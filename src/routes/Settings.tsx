@@ -1,0 +1,74 @@
+import { useMemo, useState } from "react";
+import { CheckCircle2, CloudCog, Eye, EyeOff, KeyRound, LoaderCircle, Plus, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { Button, Card, Field, Input, Select, Toggle } from "../components/Ui";
+import { checkHotkey, runSync, saveApiKey, saveProvider, saveSettings, validateApiKey } from "../lib/bridge";
+import type { AppSettings, AudioDevice, ProviderManifest } from "../lib/types";
+
+const LANGUAGES = [["auto", "Auto-detect / code-switch"], ["en", "English"], ["fr", "Français"], ["es", "Español"], ["de", "Deutsch"], ["it", "Italiano"], ["pt", "Português"], ["nl", "Nederlands"], ["ar", "العربية"], ["hi", "हिन्दी"], ["ja", "日本語"], ["zh", "中文"]];
+
+export default function Settings({ initial, providers, devices, onSaved }: { initial: AppSettings; providers: ProviderManifest[]; devices: AudioDevice[]; onSaved: () => Promise<void> }) {
+  const [settings, setSettings] = useState(initial);
+  const [key, setKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [keyState, setKeyState] = useState<"idle" | "checking" | "valid" | "error">("idle");
+  const [keyError, setKeyError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [syncPassword, setSyncPassword] = useState("");
+  const [syncStatus, setSyncStatus] = useState("");
+  const [plugin, setPlugin] = useState({ id: "", name: "", baseUrl: "", model: "" });
+  const [pluginStatus, setPluginStatus] = useState("");
+  const provider = useMemo(() => providers.find((item) => item.id === settings.provider), [providers, settings.provider]);
+  const patch = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => setSettings((current) => ({ ...current, [key]: value }));
+  const save = async () => { setSaving(true); setSaveError(""); try { await checkHotkey(settings.hotkey.combo); await saveSettings(settings); await onSaved(); } catch (error) { setSaveError(String(error)); } finally { setSaving(false); } };
+  const checkKey = async () => { setKeyState("checking"); setKeyError(""); try { await validateApiKey(settings.provider, key || undefined); if (key) await saveApiKey(settings.provider, key); setKey(""); setKeyState("valid"); } catch (error) { setKeyError(String(error)); setKeyState("error"); } };
+  const syncNow = async (direction: "push" | "pull") => { setSyncStatus("Syncing…"); try { await runSync(direction, syncPassword); setSyncStatus(direction === "push" ? "Encrypted data uploaded." : "Encrypted data restored."); if (direction === "pull") await onSaved(); } catch (error) { setSyncStatus(String(error)); } };
+  const addPlugin = async () => { setPluginStatus(""); try { await saveProvider({ id: plugin.id, name: plugin.name, baseUrl: plugin.baseUrl, transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions", models: [plugin.model], supportsRealtime: false, requiresApiKey: true }); setPlugin({ id: "", name: "", baseUrl: "", model: "" }); setPluginStatus("Provider added."); await onSaved(); } catch (error) { setPluginStatus(String(error)); } };
+  return <div className="page">
+    <header className="page-header compact"><div><p className="eyebrow">Make it yours</p><h1>Settings</h1><p>Changes stay on this device. API keys live only in your OS keychain.</p></div><div>{saveError ? <p className="field-error settings-error">{saveError}</p> : null}<Button busy={saving} onClick={() => void save()}><Save size={16} />Save changes</Button></div></header>
+    <div className="settings-stack">
+      <Card><div className="setting-heading"><CloudCog /><div><h2>Transcription</h2><p>Choose where speech is processed.</p></div></div><div className="form-grid">
+        <Field label="Provider"><Select value={settings.provider} onChange={(e) => { const next = providers.find((p) => p.id === e.target.value); setSettings((s) => ({ ...s, provider: e.target.value, model: next?.models[0] || s.model })); }}>{providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
+        <Field label="Model"><Input list="provider-models" value={settings.model} onChange={(e) => patch("model", e.target.value)} /><datalist id="provider-models">{provider?.models.map((model) => <option key={model}>{model}</option>)}</datalist></Field>
+        {settings.provider === "local" || settings.realtime.provider === "local" ? <Field label="Local server" hint="OpenAI-compatible vLLM endpoint"><Input value={settings.localEndpoint} onChange={(e) => patch("localEndpoint", e.target.value)} /></Field> : null}
+        <Field label="Fallback provider" hint="Retry here if the primary provider is unavailable"><Select value={settings.fallbackProvider || ""} onChange={(e) => patch("fallbackProvider", e.target.value || null)}><option value="">None</option>{providers.filter((item) => item.id !== settings.provider).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
+        <Field label="Language"><Select value={settings.language} onChange={(e) => patch("language", e.target.value)}>{LANGUAGES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</Select></Field>
+        <Field label="Microphone"><Select value={settings.microphoneId || ""} onChange={(e) => patch("microphoneId", e.target.value || null)}><option value="">System default</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</Select></Field>
+      </div>
+      {provider?.requiresApiKey ? <div className="key-row"><KeyRound size={18} /><Input type={showKey ? "text" : "password"} value={key} placeholder={`Enter ${provider.name} API key`} onChange={(e) => { setKey(e.target.value); setKeyState("idle"); setKeyError(""); }} /><button className="icon-button" onClick={() => setShowKey(!showKey)}>{showKey ? <EyeOff size={17} /> : <Eye size={17} />}</button><Button variant="secondary" busy={keyState === "checking"} onClick={() => void checkKey()}>{keyState === "valid" ? <CheckCircle2 size={16} /> : null}{keyState === "valid" ? "Verified" : "Verify & save"}</Button>{keyState === "error" ? <span className="field-error">{keyError || "Key rejected"}</span> : null}</div> : <div className="local-notice"><ShieldCheck size={17} />No API key required. Audio never leaves your machine.</div>}
+      </Card>
+
+      <Card><div className="setting-heading"><RefreshCw /><div><h2>Speech & polish</h2><p>Balance raw speed and writing quality.</p></div></div>
+        <Toggle checked={settings.formatting.enabled} onChange={(enabled) => patch("formatting", { ...settings.formatting, enabled })} label="AI formatting" description="Remove fillers, fix grammar, and adapt tone to the focused app." />
+        <div className="nested-settings">
+          <Field label="Formatting model"><Input value={settings.formatting.model} disabled={!settings.formatting.enabled} onChange={(e) => patch("formatting", { ...settings.formatting, model: e.target.value })} /></Field>
+          <Field label="Tone"><Select value={settings.formatting.tone} disabled={!settings.formatting.enabled} onChange={(e) => patch("formatting", { ...settings.formatting, tone: e.target.value as AppSettings["formatting"]["tone"] })}><option value="auto">Automatic by app</option><option value="formal">Formal</option><option value="casual">Casual</option><option value="code">Code-aware</option></Select></Field>
+        </div>
+        <Toggle checked={settings.formatting.removeFillers} onChange={(removeFillers) => patch("formatting", { ...settings.formatting, removeFillers })} label="Remove fillers" description="Drop hesitation words without changing meaning." disabled={!settings.formatting.enabled} />
+        <Toggle checked={settings.formatting.fixGrammar} onChange={(fixGrammar) => patch("formatting", { ...settings.formatting, fixGrammar })} label="Grammar & self-corrections" description="Resolve phrases like “Tuesday—no, Friday” into the intended result." disabled={!settings.formatting.enabled} />
+        <Toggle checked={settings.formatting.fastInsert} onChange={(fastInsert) => patch("formatting", { ...settings.formatting, fastInsert })} label="Fast insert, then refine" description="Paste the raw transcript immediately, then replace it with the polished version." disabled={!settings.formatting.enabled} />
+        <Toggle checked={settings.whisperMode} onChange={(value) => patch("whisperMode", value)} label="Whisper mode" description="Boost and normalize very quiet speech." />
+      </Card>
+
+      <Card><div className="setting-heading"><KeyRound /><div><h2>Shortcuts & insertion</h2><p>Control Utter from anywhere.</p></div></div><div className="form-grid">
+        <Field label="Dictation shortcut"><Input value={settings.hotkey.combo} onChange={(e) => patch("hotkey", { ...settings.hotkey, combo: e.target.value })} /></Field>
+        <Field label="Shortcut behavior"><Select value={settings.hotkey.mode} onChange={(e) => patch("hotkey", { ...settings.hotkey, mode: e.target.value as AppSettings["hotkey"]["mode"] })}><option value="hold">Hold to talk</option><option value="toggle">Press to start / stop</option><option value="doubleTap">Double-tap right Shift</option></Select></Field>
+        <Field label="Command mode shortcut"><Input value={settings.commandHotkey} onChange={(e) => patch("commandHotkey", e.target.value)} /></Field>
+        <Field label="Text insertion"><Select value={settings.injection} onChange={(e) => patch("injection", e.target.value as AppSettings["injection"])}><option value="clipboard">Clipboard paste (recommended)</option><option value="keystroke">Synthetic keystrokes</option></Select></Field>
+      </div></Card>
+
+      <Card><div className="setting-heading"><ShieldCheck /><div><h2>Privacy & lifecycle</h2><p>Audio is never persisted. Text history is optional.</p></div></div>
+        <Toggle checked={settings.history.enabled} onChange={(enabled) => patch("history", { ...settings.history, enabled })} label="Local history" description="Store transcript text, target app, duration, model, and cost." />
+        <div className="nested-settings"><Field label="Delete history after"><Select value={settings.history.retentionDays} onChange={(e) => patch("history", { ...settings.history, retentionDays: Number(e.target.value) })}><option value={1}>1 day</option><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option><option value={365}>1 year</option></Select></Field></div>
+        <Toggle checked={settings.zeroRetention} onChange={(value) => patch("zeroRetention", value)} label="Request provider zero-retention" description="Send the provider-specific privacy flag when supported." />
+        <Toggle checked={settings.autostart} onChange={(value) => patch("autostart", value)} label="Launch at login" description="Keep Utter ready in the system tray." />
+      </Card>
+
+      <Card><div className="setting-heading"><LoaderCircle /><div><h2>Realtime (advanced)</h2><p>Stream partial transcripts from Mistral or a local vLLM server.</p></div></div><Toggle checked={settings.realtime.enabled} onChange={(enabled) => patch("realtime", { ...settings.realtime, enabled })} label="Realtime transcription" description="Experimental sub-200 ms live text; uses a separate streaming model." /><div className="nested-settings form-grid"><Field label="Realtime provider"><Select disabled={!settings.realtime.enabled} value={settings.realtime.provider} onChange={(e) => { const provider = e.target.value; patch("realtime", { ...settings.realtime, provider, model: provider === "local" ? "mistralai/Voxtral-Mini-4B-Realtime-2602" : provider === "mistral" ? "voxtral-mini-transcribe-realtime-2602" : settings.realtime.model }); }}>{providers.filter((item) => item.supportsRealtime).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Realtime model"><Input disabled={!settings.realtime.enabled} value={settings.realtime.model} onChange={(e) => patch("realtime", { ...settings.realtime, model: e.target.value })} /></Field></div></Card>
+
+      <Card><div className="setting-heading"><ShieldCheck /><div><h2>Encrypted self-hosted sync</h2><p>Sync settings, dictionary, and snippets to your own HTTP/WebDAV endpoint.</p></div></div><Toggle checked={settings.sync.enabled} onChange={(enabled) => patch("sync", { ...settings.sync, enabled })} label="Enable sync" description="End-to-end encrypted with your passphrase before upload." /><div className="form-grid nested-settings"><Field label="Endpoint"><Input disabled={!settings.sync.enabled} placeholder="https://cloud.example/utter.enc" value={settings.sync.endpoint} onChange={(e) => patch("sync", { ...settings.sync, endpoint: e.target.value })} /></Field><Field label="Username"><Input disabled={!settings.sync.enabled} value={settings.sync.username} onChange={(e) => patch("sync", { ...settings.sync, username: e.target.value })} /></Field><Field label="Encryption passphrase"><Input disabled={!settings.sync.enabled} type="password" value={syncPassword} onChange={(e) => setSyncPassword(e.target.value)} /></Field><div className="sync-buttons"><Button variant="secondary" disabled={!settings.sync.enabled || syncPassword.length < 10} onClick={() => void syncNow("pull")}>Pull</Button><Button variant="secondary" disabled={!settings.sync.enabled || syncPassword.length < 10} onClick={() => void syncNow("push")}>Push</Button></div>{syncStatus ? <span className="field-help">{syncStatus}</span> : null}</div></Card>
+
+      <Card><div className="setting-heading"><Plus /><div><h2>Provider plugins</h2><p>Add any JSON/OpenAI-compatible transcription server without rebuilding Utter.</p></div></div><div className="plugin-form"><Input placeholder="provider-id" value={plugin.id} onChange={(e) => setPlugin({ ...plugin, id: e.target.value })} /><Input placeholder="Display name" value={plugin.name} onChange={(e) => setPlugin({ ...plugin, name: e.target.value })} /><Input placeholder="https://api.example/v1" value={plugin.baseUrl} onChange={(e) => setPlugin({ ...plugin, baseUrl: e.target.value })} /><Input placeholder="Model slug" value={plugin.model} onChange={(e) => setPlugin({ ...plugin, model: e.target.value })} /><Button variant="secondary" disabled={!plugin.id || !plugin.name || !plugin.baseUrl || !plugin.model} onClick={() => void addPlugin()}>Add provider</Button>{pluginStatus ? <span className="field-help">{pluginStatus}</span> : null}</div></Card>
+    </div>
+  </div>;
+}

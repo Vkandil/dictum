@@ -1,0 +1,10 @@
+{
+  "id": "example-provider",
+  "name": "Example OpenAI-compatible STT",
+  "baseUrl": "https://api.example.com/v1",
+  "transcriptionPath": "/audio/transcriptions",
+  "chatPath": "/chat/completions",
+  "models": ["example-transcribe-1"],
+  "supportsRealtime": false,
+  "requiresApiKey": true
+}
