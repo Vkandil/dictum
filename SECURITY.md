@@ -2,7 +2,7 @@
 
 Please report vulnerabilities privately through GitHub Security Advisories rather than a public issue. Include affected versions, platform, impact, and reproduction steps.
 
-Utter’s trust boundaries are deliberately small:
+Dictum’s trust boundaries are deliberately small:
 
 - API keys are stored only through the OS credential service.
 - Provider manifests are validated data; they are not executable plugins.

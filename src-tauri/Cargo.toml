@@ -1,24 +1,24 @@
 [package]
-name = "utter"
+name = "dictum"
 version = "0.1.0"
 description = "Open-source, local-first, system-wide voice dictation"
-authors = ["Utter contributors"]
+authors = ["Dictum contributors"]
 license = "MIT"
-repository = "https://github.com/utter-app/utter"
+repository = "https://github.com/dictum-app/dictum"
 edition = "2021"
 rust-version = "1.81"
 
 [lib]
-name = "utter_lib"
+name = "dictum_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "utter"
+name = "dictum"
 path = "src/main.rs"
 
 [[bin]]
-name = "utter-cli"
-path = "src/bin/utter-cli.rs"
+name = "dictum-cli"
+path = "src/bin/dictum-cli.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

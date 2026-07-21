@@ -228,7 +228,7 @@ pub fn start_recording(
 
 pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()> {
     if state.paused.load(Ordering::SeqCst) {
-        anyhow::bail!("Utter is paused from the tray");
+        anyhow::bail!("Dictum is paused from the tray");
     }
     if state.busy.swap(false, Ordering::SeqCst) {
         state.operation.lock().unwrap().cancel();
@@ -448,7 +448,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     let mut replace_previous = None;
     let mut fast_inserted = None;
     let final_text = if command_mode {
-        let assistant = expanded.to_lowercase().starts_with("ask utter")
+        let assistant = expanded.to_lowercase().starts_with("ask dictum")
             || expanded.to_lowercase().starts_with("answer ");
         let previous = if assistant {
             None

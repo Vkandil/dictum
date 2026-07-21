@@ -1,4 +1,4 @@
-# Utter — Spécification technique du projet
+# Dictum — Spécification technique du projet
 
 > Dictée vocale open-source, système-wide, *bring-your-own-key*. Alternative libre à Wispr Flow, propulsée par Voxtral (Mistral).
 > **Statut :** spec de build v1 — à exécuter par l'équipe. Toutes les valeurs chiffrées (prix, WER, slugs de modèles, endpoints) sont des hypothèses de conception à revérifier au moment du build, car elles évoluent vite.
@@ -11,7 +11,7 @@ On construit une app de bureau qui fait ce que fait Wispr Flow : tu presses un r
 
 **Ce qui nous rend meilleurs que Wispr Flow :**
 
-| Axe | Wispr Flow | Utter |
+| Axe | Wispr Flow | Dictum |
 |---|---|---|
 | Modèle éco | Cloud propriétaire, abonnement (~12–15 $/mois) | BYO-key, tu paies l'inférence au coût réel (~0,003 $/min) |
 | Offline | Impossible (cloud-only) | Backend local optionnel (Voxtral open-weights via vLLM) |
@@ -26,7 +26,7 @@ On construit une app de bureau qui fait ce que fait Wispr Flow : tu presses un r
 
 ## 2. Décision modèle & provider (résumé exécutable)
 
-| Modèle | Slug (OpenRouter) | Prix ~ | WER FLEURS ~ | Endpoint | Rôle dans Utter |
+| Modèle | Slug (OpenRouter) | Prix ~ | WER FLEURS ~ | Endpoint | Rôle dans Dictum |
 |---|---|---|---|---|---|
 | **Voxtral Mini Transcribe** | `mistralai/voxtral-mini-transcribe` | ~0,002–0,003 $/min | ~4–5,5 % | `/audio/transcriptions` | **Défaut** — le meilleur latence/coût |
 | Voxtral Small 24B | `mistralai/voxtral-small-24b-2507` | ~0,006 $/min | ~5,1 % | `/chat/completions` + `input_audio` | Mode « qualité / smart » (audio-LLM : transcrit + formate en un appel) |
@@ -124,7 +124,7 @@ Justification : c'est un utilitaire toujours-actif, sensible à la latence, avec
 - [ ] **Mode Realtime streaming** (WebSocket, sub-200 ms) : texte qui apparaît pendant qu'on parle.
 - [ ] **Système de providers/plugins** ouvert (ajouter Deepgram, Whisper local, etc.).
 - [ ] **Sync optionnelle** self-hostable (settings/dictionnaire/snippets) — chiffrée, opt-in, jamais un serveur central obligatoire.
-- [ ] **CLI** (`utter transcribe file.wav`, scriptable).
+- [ ] **CLI** (`dictum transcribe file.wav`, scriptable).
 - [ ] **Intégration assistants** (poser une question à un LLM par la voix et coller la réponse).
 
 ---
@@ -251,13 +251,13 @@ CREATE TABLE history (
 );
 ```
 
-**Clé API :** stockée via le keychain (`service = "com.utter.app"`, `account = provider`), pas en base.
+**Clé API :** stockée via le keychain (`service = "com.dictum.app"`, `account = provider`), pas en base.
 
 ---
 
 ## 8. Config utilisateur (exemple)
 
-Fichier `~/.config/utter/config.json` (la clé API **n'y est pas**) :
+Fichier `~/.config/dictum/config.json` (la clé API **n'y est pas**) :
 
 ```json
 {
@@ -386,7 +386,7 @@ body: JSON.stringify({
 ## 13. Structure du repo
 
 ```
-utter/
+dictum/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs

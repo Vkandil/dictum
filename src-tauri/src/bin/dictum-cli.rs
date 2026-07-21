@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use utter_lib::{
+use dictum_lib::{
     audio::AudioChunk,
     keychain,
     store::Store,
@@ -11,9 +11,9 @@ use utter_lib::{
 
 #[derive(Parser)]
 #[command(
-    name = "utter",
+    name = "dictum",
     version,
-    about = "Scriptable voice transcription using your Utter configuration"
+    about = "Scriptable voice transcription using your Dictum configuration"
 )]
 struct Cli {
     #[command(subcommand)]

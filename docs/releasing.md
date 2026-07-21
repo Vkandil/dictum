@@ -6,7 +6,7 @@ The updater keypair for this checkout is in the git-ignored `.secrets/` director
 
 Configure these GitHub secrets before the first public release:
 
-- `TAURI_SIGNING_PRIVATE_KEY`: the contents of the locally generated, git-ignored `.secrets/utter-updater.key`. The matching public key is already embedded in `src-tauri/tauri.conf.json`. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to an empty value for this key.
+- `TAURI_SIGNING_PRIVATE_KEY`: the contents of the locally generated, git-ignored `.secrets/dictum-updater.key`. The matching public key is already embedded in `src-tauri/tauri.conf.json`. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to an empty value for this key.
 - Apple: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID`.
 - Windows: `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD`, or the appropriate Azure Trusted Signing variables supported by the current Tauri action.
 

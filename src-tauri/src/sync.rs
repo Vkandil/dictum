@@ -26,7 +26,7 @@ pub async fn push(store: &Store, settings: &SyncSettings, passphrase: &str) -> R
         settings,
         passphrase,
     )
-    .header("Content-Type", "application/vnd.utter.encrypted+json")
+    .header("Content-Type", "application/vnd.dictum.encrypted+json")
     .body(body)
     .send()
     .await?;

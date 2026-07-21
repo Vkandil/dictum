@@ -1,4 +1,4 @@
-# Contributing to Utter
+# Contributing to Dictum
 
 Thank you for helping make private voice dictation accessible. Open an issue before large architectural changes. Small fixes can go directly to a pull request.
 

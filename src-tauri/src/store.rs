@@ -218,10 +218,10 @@ pub struct Store {
 
 impl Store {
     pub fn new() -> Result<Self> {
-        if let Some(directory) = std::env::var_os("UTTER_DATA_DIR").map(PathBuf::from) {
+        if let Some(directory) = std::env::var_os("DICTUM_DATA_DIR").map(PathBuf::from) {
             return Self::from_directories(&directory, &directory);
         }
-        let dirs = ProjectDirs::from("com", "utter", "Utter")
+        let dirs = ProjectDirs::from("com", "dictum", "Dictum")
             .context("could not resolve the application data directory")?;
         Self::from_directories(dirs.data_local_dir(), dirs.config_dir())
     }
@@ -232,7 +232,7 @@ impl Store {
         let provider_dir = config_directory.join("providers");
         fs::create_dir_all(&provider_dir)?;
         let store = Self {
-            path: data_directory.join("utter.sqlite3"),
+            path: data_directory.join("dictum.sqlite3"),
             config_path: config_directory.join("config.json"),
             provider_dir,
         };
@@ -555,7 +555,7 @@ mod tests {
 
     fn test_store() -> (Store, PathBuf) {
         let directory =
-            std::env::temp_dir().join(format!("utter-store-test-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("dictum-store-test-{}", uuid::Uuid::new_v4()));
         (Store::in_directory(&directory).unwrap(), directory)
     }
 

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use keyring::Entry;
 
-const SERVICE: &str = "com.utter.app";
+const SERVICE: &str = "com.dictum.app";
 
 pub fn set(provider: &str, secret: &str) -> Result<()> {
     anyhow::ensure!(!secret.trim().is_empty(), "API key cannot be empty");

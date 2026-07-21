@@ -169,8 +169,8 @@ pub fn expand_snippets(raw: &str, snippets: &[(String, String)]) -> String {
 pub fn assistant_query(raw: &str) -> &str {
     let trimmed = raw.trim();
     let lower = trimmed.to_ascii_lowercase();
-    let without_prefix = if lower.starts_with("ask utter") {
-        &trimmed["ask utter".len()..]
+    let without_prefix = if lower.starts_with("ask dictum") {
+        &trimmed["ask dictum".len()..]
     } else if lower.starts_with("answer ") {
         &trimmed["answer".len()..]
     } else {
@@ -204,7 +204,10 @@ mod tests {
     }
     #[test]
     fn assistant_prefix_is_not_sent_as_part_of_the_question() {
-        assert_eq!(assistant_query("Ask Utter: what is Rust?"), "what is Rust?");
+        assert_eq!(
+            assistant_query("Ask Dictum: what is Rust?"),
+            "what is Rust?"
+        );
         assert_eq!(
             assistant_query("answer why the sky is blue"),
             "why the sky is blue"

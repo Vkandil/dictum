@@ -24,7 +24,7 @@ impl HttpTranscriptionProvider {
             api_key,
             client: Client::builder()
                 .timeout(Duration::from_secs(10))
-                .user_agent("Utter/0.1 (https://github.com/utter-app/utter)")
+                .user_agent("Dictum/0.1 (https://github.com/dictum-app/dictum)")
                 .build()
                 .expect("HTTP client"),
         }
@@ -102,7 +102,7 @@ impl HttpTranscriptionProvider {
         opts: &TranscribeOpts,
     ) -> Result<Transcript, TranscribeError> {
         let file = multipart::Part::bytes(audio.wav.clone())
-            .file_name("utter.wav")
+            .file_name("dictum.wav")
             .mime_str("audio/wav")
             .map_err(|e| TranscribeError::InvalidResponse(e.to_string()))?;
         let mut form = multipart::Form::new()
@@ -256,7 +256,7 @@ mod tests {
         TranscribeOpts {
             model: "mistralai/voxtral-mini-transcribe".into(),
             language: Some("fr".into()),
-            biasing: vec!["Utter".into()],
+            biasing: vec!["Dictum".into()],
             zero_retention: true,
         }
     }

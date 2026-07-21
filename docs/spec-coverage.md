@@ -1,6 +1,6 @@
 # Specification coverage
 
-This document maps the acceptance contract in `utter-spec.md` to implementation. “Implemented” means the source path exists and is exercised by compilation or a unit test; hardware-, credential-, and signing-dependent checks are completed by the platform smoke-test checklist below.
+This document maps the acceptance contract in `dictum-spec.md` to implementation. “Implemented” means the source path exists and is exercised by compilation or a unit test; hardware-, credential-, and signing-dependent checks are completed by the platform smoke-test checklist below.
 
 ## P0 — end-to-end MVP
 
@@ -40,8 +40,8 @@ This document maps the acceptance contract in `utter-spec.md` to implementation.
 | Realtime streaming and live HUD text | Implemented | 16 kHz PCM bridge and WebSocket transport in `transcribe/realtime.rs`; batch fallback |
 | Open provider/plugin system | Implemented | Validated data-only JSON manifests and Settings editor |
 | Optional encrypted self-hosted sync | Implemented | Settings/dictionary/snippets envelope using Argon2 + AES-256-GCM and user endpoint |
-| Scriptable CLI | Implemented | `utter-cli transcribe file.wav` |
-| Voice assistant answer insertion | Implemented | Say “ask Utter …” or “answer …” in command mode; answer is inserted without requiring/replacing a previous block |
+| Scriptable CLI | Implemented | `dictum-cli transcribe file.wav` |
+| Voice assistant answer insertion | Implemented | Say “ask Dictum …” or “answer …” in command mode; answer is inserted without requiring/replacing a previous block |
 
 ## Reliability, security, and packaging
 

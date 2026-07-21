@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Utter",
+  "productName": "Dictum",
   "version": "0.1.0",
-  "identifier": "com.utter.desktop",
+  "identifier": "com.dictum.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Utter",
+        "title": "Dictum",
         "width": 1120,
         "height": 760,
         "minWidth": 820,
@@ -26,7 +26,7 @@
       {
         "label": "overlay",
         "url": "index.html?window=overlay",
-        "title": "Utter HUD",
+        "title": "Dictum HUD",
         "width": 430,
         "height": 110,
         "x": 500,
@@ -50,13 +50,13 @@
     "category": "Productivity",
     "shortDescription": "Voice dictation everywhere",
     "longDescription": "Open-source, local-first, system-wide voice dictation powered by interchangeable providers.",
-    "copyright": "Copyright © 2026 Utter contributors",
+    "copyright": "Copyright © 2026 Dictum contributors",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "macOS": { "minimumSystemVersion": "10.15", "entitlements": "Entitlements.plist" }
   },
   "plugins": {
     "updater": {
-      "endpoints": ["https://github.com/utter-app/utter/releases/latest/download/latest.json"],
+      "endpoints": ["https://github.com/dictum-app/dictum/releases/latest/download/latest.json"],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDMUY0NzUwMTk3MUZEQzcKUldUSC9YRVpVRWNmM0NOSjZQTlUvc1pYRVNlYm5qV0dEYk9PQVdHaWJXRUVyTk9WL2hGMHJ6L3kK"
     }
   }

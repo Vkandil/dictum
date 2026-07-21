@@ -9,6 +9,7 @@ import Onboarding from "./routes/Onboarding";
 import Overlay from "./routes/Overlay";
 import Settings from "./routes/Settings";
 import Snippets from "./routes/Snippets";
+import dictumLogo from "../logos/Dictum_png.png";
 
 export default function App() {
   const [data, setData] = useState<BootstrapData | null>(null);
@@ -22,7 +23,7 @@ export default function App() {
   useEffect(() => { let off: (() => void) | undefined; listenDictation((state) => { if (state.phase === "result") setRefresh((v) => v + 1); }).then((fn) => off = fn); return () => off?.(); }, []);
   useEffect(() => { let off: (() => void) | undefined; listenSettingsNavigation(() => setPage("settings")).then((fn) => off = fn); return () => off?.(); }, []);
   if (windowLabel() === "overlay") return <Overlay />;
-  if (!data) return <div className="app-loader"><div className="brand-mark pulse">U</div></div>;
+  if (!data) return <div className="app-loader"><div className="brand-mark pulse"><img src={dictumLogo} alt="Dictum" /></div></div>;
   const previewDashboard = !windowLabel().startsWith("main") ? false : !('__TAURI_INTERNALS__' in window) && new URLSearchParams(location.search).has("preview");
   if (!data.settings.onboardingComplete && !previewDashboard) return <Onboarding initial={data.settings} platform={data.platform} onComplete={reload} />;
   return <div className="shell"><Sidebar page={page} onNavigate={setPage} /><main className="content">

@@ -36,7 +36,7 @@ fn read_request(stream: &mut TcpStream) -> Vec<u8> {
 
 #[test]
 fn cli_transcribes_a_wav_through_a_local_provider_and_retries_5xx() {
-    let directory = std::env::temp_dir().join(format!("utter-cli-test-{}", uuid::Uuid::new_v4()));
+    let directory = std::env::temp_dir().join(format!("dictum-cli-test-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&directory).unwrap();
     let wav_path = directory.join("sample.wav");
     let mut writer = hound::WavWriter::create(
@@ -85,8 +85,8 @@ fn cli_transcribes_a_wav_through_a_local_provider_and_retries_5xx() {
     });
 
     let endpoint = format!("http://{address}/v1");
-    let output = Command::new(env!("CARGO_BIN_EXE_utter-cli"))
-        .env("UTTER_DATA_DIR", &directory)
+    let output = Command::new(env!("CARGO_BIN_EXE_dictum-cli"))
+        .env("DICTUM_DATA_DIR", &directory)
         .args([
             "transcribe",
             wav_path.to_str().unwrap(),

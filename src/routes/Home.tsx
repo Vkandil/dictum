@@ -11,7 +11,7 @@ export default function Home({ settings }: { settings: AppSettings }) {
   const active = state.phase === "listening";
   const hotkey = settings.hotkey.combo.replace("CommandOrControl", navigator.platform.includes("Mac") ? "⌘" : "Ctrl").replaceAll("+", " + ");
   return <div className="page home-page">
-    <header className="page-header"><div><p className="eyebrow">Ready when you are</p><h1>Speak naturally.<br />Write beautifully.</h1><p>Hold your shortcut, talk, and Utter types polished text wherever your cursor is.</p></div><Pill tone="success">System active</Pill></header>
+    <header className="page-header"><div><p className="eyebrow">Ready when you are</p><h1>Speak naturally.<br />Write beautifully.</h1><p>Hold your shortcut, talk, and Dictum types polished text wherever your cursor is.</p></div><Pill tone="success">System active</Pill></header>
     <Card className={`dictation-card ${active ? "recording" : ""}`}>
       <button className="record-button" onClick={() => void (active ? stopRecording() : startRecording(false))}>{active ? <Square size={28} fill="currentColor" /> : <Mic size={34} />}</button>
       <div><h2>{active ? "Listening…" : "Start a dictation"}</h2><p>{active ? "Release the shortcut or tap stop when you’re done." : <>Hold <kbd>{hotkey}</kbd> from any app</>}</p></div>

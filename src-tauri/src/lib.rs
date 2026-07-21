@@ -101,18 +101,18 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("failed to run Utter");
+        .expect("failed to run Dictum");
 }
 
 fn setup_tray(app: &mut tauri::App) -> Result<()> {
-    let show = MenuItem::with_id(app, "show", "Open Utter", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Open Dictum", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause", "Pause dictation", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &settings, &pause, &quit])?;
     let pause_item = pause.clone();
-    let mut tray = TrayIconBuilder::with_id("utter-tray")
-        .tooltip("Utter — ready")
+    let mut tray = TrayIconBuilder::with_id("dictum-tray")
+        .tooltip("Dictum — ready")
         .menu(&menu)
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "show" => {
