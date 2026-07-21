@@ -29,7 +29,7 @@
 > [!IMPORTANT]
 > Dictum 1.0 is a Windows-only desktop application. The supported target is 64-bit Windows 10 or Windows 11. The repository intentionally does not build or publish packages for other operating systems.
 
-Dictum is a free and open-source alternative to proprietary system-wide dictation tools such as Wispr Flow. It is not affiliated with or endorsed by Wispr Flow.
+Dictum is a free, open-source Windows application that turns your voice into polished text wherever you type.
 
 ## What Dictum does
 
