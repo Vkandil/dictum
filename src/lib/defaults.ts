@@ -33,7 +33,6 @@ export const browserBootstrap: BootstrapData = {
   devices: [{ id: "default", name: "Default microphone", isDefault: true }],
   dictionary: [],
   snippets: [],
-  platform: navigator.platform,
   version: "dev",
   providers: [
     {

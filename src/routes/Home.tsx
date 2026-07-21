@@ -9,7 +9,7 @@ export default function Home({ settings }: { settings: AppSettings }) {
   const [latest, setLatest] = useState<HistoryItem | undefined>();
   useEffect(() => { void getHistory().then((items) => setLatest(items[0])); let off: (() => void) | undefined; listenDictation((next) => { setState(next); if (next.phase === "result") void getHistory().then((items) => setLatest(items[0])); }).then((fn) => off = fn); return () => off?.(); }, []);
   const active = state.phase === "listening";
-  const hotkey = settings.hotkey.combo.replace("CommandOrControl", navigator.platform.includes("Mac") ? "⌘" : "Ctrl").replaceAll("+", " + ");
+  const hotkey = settings.hotkey.combo.replace("CommandOrControl", "Ctrl").replaceAll("+", " + ");
   return <div className="page home-page">
     <header className="page-header"><div><p className="eyebrow">Ready when you are</p><h1>Speak naturally.<br />Write beautifully.</h1><p>Hold your shortcut, talk, and Dictum types polished text wherever your cursor is.</p></div><Pill tone="success">System active</Pill></header>
     <Card className={`dictation-card ${active ? "recording" : ""}`}>
@@ -24,7 +24,7 @@ export default function Home({ settings }: { settings: AppSettings }) {
     </div>
     <div className="two-column">
       <Card><div className="section-title"><div><p className="eyebrow">Last dictation</p><h2>{latest ? new Date(latest.createdAt * 1000).toLocaleString() : "Nothing yet"}</h2></div>{latest ? <Pill>${latest.costUsd.toFixed(5)}</Pill> : null}</div><p className="latest-text">{latest?.text || "Your latest dictation will appear here after it is inserted."}</p></Card>
-      <Card className="command-card"><Command size={24} /><div><h2>Command mode</h2><p>Transform your last block by voice: “make it concise”, “translate to French”, or “turn it into bullets”.</p><kbd>{settings.commandHotkey.replace("CommandOrControl", navigator.platform.includes("Mac") ? "⌘" : "Ctrl").replaceAll("+", " + ")}</kbd></div></Card>
+      <Card className="command-card"><Command size={24} /><div><h2>Command mode</h2><p>Transform your last block by voice: “make it concise”, “translate to French”, or “turn it into bullets”.</p><kbd>{settings.commandHotkey.replace("CommandOrControl", "Ctrl").replaceAll("+", " + ")}</kbd></div></Card>
     </div>
   </div>;
 }

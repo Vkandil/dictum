@@ -34,7 +34,7 @@ describe("onboarding", () => {
 
   it("requires a validated hosted key but allows a genuinely local setup", async () => {
     const onComplete = vi.fn();
-    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" onComplete={onComplete} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={onComplete} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     expect(screen.getByRole("button", { name: /^continue/i })).toBeDisabled();
@@ -55,7 +55,7 @@ describe("onboarding", () => {
   });
 
   it("shows the test dictation result in its sandbox", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /use a local provider/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
@@ -69,7 +69,7 @@ describe("onboarding", () => {
   });
 
   it("captures and validates a shortcut without typed syntax", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" hasOpenRouterKey onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} hasOpenRouterKey onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
@@ -84,7 +84,7 @@ describe("onboarding", () => {
   });
 
   it("keeps delayed recording errors off the shortcut page and proceeds to the trial", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" hasOpenRouterKey onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} hasOpenRouterKey onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
@@ -99,7 +99,7 @@ describe("onboarding", () => {
   });
 
   it("reports shortcut save failures as shortcut errors instead of microphone errors", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" hasOpenRouterKey onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} hasOpenRouterKey onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
@@ -112,7 +112,7 @@ describe("onboarding", () => {
   });
 
   it("shows live microphone activity and explains provider quota separately", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /use a local provider/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));

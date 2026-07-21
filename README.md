@@ -5,247 +5,198 @@
 <h1 align="center">Dictum</h1>
 
 <p align="center">
-  Open-source, local-first voice dictation for every desktop app.
+  Open-source, local-first voice dictation for Windows.
   <br />
-  Hold a shortcut, speak naturally, and Dictum inserts polished text at your cursor.
+  Hold a shortcut, speak naturally, and Dictum inserts polished text wherever your cursor is.
 </p>
 
 <p align="center">
-  <img alt="Project status: alpha" src="https://img.shields.io/badge/status-alpha-f97316" />
+  <img alt="Version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-2563EB" />
+  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
-  <img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB" /></a>
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> ·
+  <a href="#download-and-install">Install</a> ·
   <a href="#first-run">First run</a> ·
   <a href="#using-dictum">Usage</a> ·
-  <a href="#local-and-offline-transcription">Local mode</a> ·
-  <a href="#development">Development</a> ·
-  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="#long-dictation">Long dictation</a> ·
+  <a href="#build-from-source">Build</a> ·
+  <a href="#troubleshooting">Help</a>
 </p>
 
 > [!IMPORTANT]
-> Dictum is currently alpha software. The source application is functional and tested in CI, but public signed installers have not been published yet. Until the first release, build it from source using the instructions below. Windows has received the most local smoke testing; macOS and Linux still need broader real-hardware testing.
+> Dictum 1.0 is a Windows-only desktop application. The supported target is 64-bit Windows 10 or Windows 11. The repository intentionally does not build or publish packages for other operating systems.
 
 Dictum is a free and open-source alternative to proprietary system-wide dictation tools such as Wispr Flow. It is not affiliated with or endorsed by Wispr Flow.
 
-## Why Dictum?
+## What Dictum does
 
-- **Dictate anywhere.** Use one global shortcut in email, chat, documents, browsers, editors, and native applications.
-- **Choose where inference happens.** Use OpenRouter, Mistral, a local vLLM server, or another OpenAI-compatible transcription provider.
-- **Own your credentials.** API keys live in the operating-system credential store—not in Dictum's database or configuration file.
-- **Keep audio ephemeral.** Captured audio is processed in memory and is never written to disk.
-- **Control your text data.** History is local, optional, searchable, and automatically purged according to your retention setting.
-- **Improve the result.** Optional formatting removes fillers, fixes grammar, adapts tone to the current app, and preserves personal vocabulary.
-- **Inspect and change everything.** The desktop app, audio pipeline, provider layer, storage, and UI are MIT licensed.
+Press a global shortcut in any Windows application, speak, and Dictum:
 
-Dictum itself has no subscription fee. Hosted providers may charge for inference; local mode uses your own hardware.
+1. Captures microphone audio in memory.
+2. Converts it to provider-compatible 16 kHz mono audio.
+3. Splits long recordings into complete 25-second parts.
+4. Transcribes every part through your chosen provider.
+5. Optionally removes fillers, corrects grammar, and adapts tone.
+6. Combines every part in order and pastes the final text at your cursor.
+
+Dictum itself has no subscription fee. Hosted providers may charge for inference. You bring your own provider key and keep control of the account.
 
 ## Features
 
-### Everyday dictation
+### Dictation
 
-- Hold-to-talk, press-to-toggle, or double-tap Right Shift
-- Visual recording HUD and live microphone level
-- Automatic silence trimming and quiet-speech normalization
-- Long-dictation chunking with cancellation and retry handling
+- System-wide Windows shortcuts
+- Hold-to-talk, press-to-toggle, and double-tap Right Shift modes
+- Live microphone meter and non-focusable recording HUD
+- Automatic silence trimming and optional Whisper mode
+- Recordings longer than 30 seconds with visible part-by-part progress
 - Automatic language detection or an explicit language hint
-- Clipboard insertion with Unicode support and a keystroke fallback
-- System tray controls, pause/resume, and optional launch at login
+- Unicode-safe clipboard insertion with synthetic typing fallback
+- Escape-to-cancel without inserting text
+- Tray pause/resume and optional launch at Windows login
 
 ### Writing assistance
 
-- Optional filler removal, punctuation, grammar correction, and self-correction handling
-- App-aware tone for chat, formal writing, and code-oriented applications
-- Fast insert followed by an optional refined replacement
-- Personal dictionary with provider context bias
-- Voice snippets for reusable text
-- Command mode for requests such as “make it concise” or “translate to French”
-- Assistant insertion with phrases such as “ask Dictum …”
+- Optional filler removal, punctuation, and grammar correction
+- Spoken self-correction handling
+- App-aware tone for chat, formal writing, and code editors
+- Fast insertion followed by optional refined replacement
+- Personal dictionary and provider context bias
+- Exact-phrase voice snippets
+- Command mode for “make it concise”, “translate to French”, and similar requests
+- Assistant mode using “ask Dictum …” or “answer …”
 
-### Privacy and extensibility
+### Privacy and control
 
-- OpenRouter, native Mistral, and local vLLM providers
-- Validated, data-only provider manifests for compatible services
-- Optional provider fallback and zero-data-retention request flags
-- Optional realtime transcription with batch fallback
-- Optional end-to-end encrypted sync to a user-controlled HTTP/WebDAV endpoint
-- Scriptable `dictum-cli` for PCM WAV transcription
+- OpenRouter, Mistral, local vLLM, and custom OpenAI-compatible providers
+- API keys stored in Windows Credential Manager
+- Raw audio held in memory and never written to disk
+- Optional local text history with configurable retention
+- Optional provider zero-data-retention request
+- Optional encrypted sync to your own HTTPS/WebDAV endpoint
+- Data-only provider manifests that cannot execute third-party code
+- Scriptable Windows CLI for PCM WAV transcription
 
-## Platform status
+## Requirements
 
-| Platform | Status | Notes |
-| --- | --- | --- |
-| Windows 10/11 | Best tested | Uses WebView2, Windows Credential Manager, microphone privacy controls, and native text injection. |
-| macOS 10.15+ | Builds in CI; hardware testing needed | Requires Microphone and Accessibility permissions. Double-tap mode also requires Input Monitoring. |
-| Linux X11 | Builds in CI; best effort | Requires the listed native packages. Active-window detection and synthetic input depend on X11 tooling. |
-| Linux Wayland | Limited | Wayland intentionally restricts global input and synthetic typing. A compositor-supported input portal, `ydotool`, or `wtype` integration is still needed. |
+For the installed application:
 
-Mobile platforms are not currently supported. The mobile icon assets generated by Tauri do not indicate an Android or iOS application.
+- 64-bit Windows 10 or Windows 11
+- A working microphone
+- Microsoft Edge WebView2 Runtime, normally already installed on supported Windows versions
+- Internet access for a hosted provider, or access to your configured self-hosted provider
+- An OpenRouter or Mistral API key when using those hosted services
 
-## Installation
+Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Server as an official 1.0 target.
 
-### Option A: Download a release
+## Download and install
 
-The release workflow is prepared to produce Windows, macOS, and Linux packages, but there is no public signed release yet. Once releases are published, download the package for your platform from the project's **Releases** page:
+1. Open the repository's **Releases** page.
+2. Download the latest signed Windows installer:
+   - `Dictum_*_x64-setup.exe` is the recommended per-user installer.
+   - `Dictum_*_x64_en-US.msi` is available for managed Windows deployment.
+3. Verify the release checksum if one is provided.
+4. Run the installer.
+5. Open **Dictum** from the Start menu.
 
-| Platform | Expected package |
-| --- | --- |
-| Windows | NSIS `.exe` or `.msi` |
-| macOS | `.dmg` |
-| Debian/Ubuntu | `.deb` |
-| Other supported Linux distributions | `.AppImage` |
+Only download Dictum from the official GitHub repository. The release workflow produces Windows NSIS and MSI packages only.
 
-Do not download Dictum installers from unofficial mirrors.
-
-### Option B: Build from source
-
-#### 1. Install the prerequisites
-
-All platforms need:
-
-- [Node.js](https://nodejs.org/) 20 or newer; Node.js 22 LTS is used in CI
-- [Rust](https://www.rust-lang.org/tools/install) 1.81 or newer with Cargo
-- Git
-- The native requirements for [Tauri 2](https://v2.tauri.app/start/prerequisites/)
-
-Platform-specific requirements:
-
-<details>
-<summary><strong>Windows</strong></summary>
-
-Install:
-
-1. [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++** selected.
-2. Microsoft Edge WebView2. It is normally already installed on current Windows 10 and Windows 11 systems.
-3. Rust with the MSVC toolchain:
-
-```powershell
-winget install --id Rustlang.Rustup
-rustup default stable-msvc
-```
-
-Restart PowerShell after installing system tools.
-
-</details>
-
-<details>
-<summary><strong>macOS</strong></summary>
-
-Install Xcode Command Line Tools:
-
-```sh
-xcode-select --install
-```
-
-Then install Node.js and Rust.
-
-</details>
-
-<details>
-<summary><strong>Ubuntu 22.04 / Debian-based Linux</strong></summary>
-
-Install the native packages used by Dictum's CI build:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev \
-  libappindicator3-dev \
-  librsvg2-dev \
-  patchelf \
-  libasound2-dev \
-  libxdo-dev \
-  libxtst-dev
-```
-
-Then install Node.js and Rust. Other distributions should use the equivalent packages from the official Tauri prerequisites guide.
-
-</details>
-
-Verify the toolchain:
-
-```sh
-node --version
-npm --version
-rustc --version
-cargo --version
-```
-
-#### 2. Clone and run Dictum
-
-```sh
-git clone https://github.com/dictum-app/dictum.git
-cd dictum
-npm ci
-npm run desktop:dev
-```
-
-The first Rust build can take several minutes. Keep the terminal open while Dictum is running; development logs appear there. The command starts both Vite and the Tauri desktop process.
-
-To create an optimized native installer or application bundle:
-
-```sh
-npm run desktop:build
-```
-
-Build artifacts are written below `src-tauri/target/release/bundle/`.
-
-> [!NOTE]
-> `npm run dev` starts only the browser UI with mock data. Use `npm run desktop:dev` when testing microphones, global shortcuts, the keychain, the tray, or text insertion.
+If a public release has not been published yet, use [Build from source](#build-from-source).
 
 ## First run
 
-Dictum's onboarding guides you through the complete setup:
+Onboarding handles all required setup without editing a configuration file.
 
-1. **Choose a provider.** The easiest hosted route is OpenRouter. Create an [OpenRouter API key](https://openrouter.ai/settings/keys), make sure the account or key has available credits, and paste the key into Dictum. You can instead choose local mode.
-2. **Choose a microphone.** Select an input device and click **Test access**. Windows and macOS may ask for operating-system permission.
-3. **Choose a shortcut.** Pick a suggestion or click **Record shortcut** and press the key combination you want. Dictum checks for conflicts before saving it.
-4. **Test your voice.** Click **Start test dictation**, speak for a few seconds while watching the signal meter, then click **Stop & transcribe**.
-5. **Finish setup.** Dictum stays available from the system tray and listens only while a recording shortcut is active.
+### 1. Connect a provider
 
-The default hosted configuration is:
+The simplest setup uses OpenRouter:
 
-| Setting | Default |
-| --- | --- |
-| Provider | OpenRouter |
-| Transcription model | `mistralai/voxtral-mini-transcribe` |
-| Dictation shortcut | `Ctrl/Command + Shift + Space` |
-| Shortcut behavior | Hold to talk |
-| Command shortcut | `Ctrl/Command + Shift + Period` |
-| Language | Automatic |
-| Text formatting | Enabled |
-| Local text history | Enabled, 30-day retention |
-| Audio storage | Disabled and rejected by the backend |
-| Provider zero-retention request | Enabled where supported |
+1. Create an [OpenRouter API key](https://openrouter.ai/settings/keys).
+2. Make sure the account and key have available credits or spending quota.
+3. Paste the key into Dictum and click **Validate key**.
+
+The key is stored in Windows Credential Manager under service `com.dictum.app`; it is never placed in SQLite or `config.json`.
+
+You can instead choose **Use a local provider** and configure an OpenAI-compatible transcription server later.
+
+### 2. Test the microphone
+
+1. Select the same microphone that works in your other Windows applications.
+2. Click **Test access**.
+3. If Windows blocks access, enable:
+   - **Microphone access**
+   - **Let apps access your microphone**
+   - **Let desktop apps access your microphone**
+
+### 3. Choose a shortcut
+
+Choose a suggested shortcut or click **Record shortcut** and press the combination you want. Dictum displays a readable confirmation and checks whether Windows or another application already owns it.
+
+The default is `Ctrl + Shift + Space` in hold-to-talk mode.
+
+### 4. Test dictation
+
+On **Give it a voice**:
+
+1. Click **Start test dictation**.
+2. Speak while confirming that the signal meter moves.
+3. Click **Stop & transcribe**.
+4. Confirm that the complete result appears in the text box.
 
 ## Using Dictum
 
 ### Dictate text
 
-The exact behavior depends on the mode selected in Settings:
+The shortcut behavior depends on the selected mode:
 
-- **Hold to talk:** hold the dictation shortcut, speak, then release it.
-- **Press to start/stop:** press once to begin and once again to transcribe.
-- **Double-tap Right Shift:** double-tap to begin and double-tap again to stop.
+| Mode | Start | Stop and transcribe |
+| --- | --- | --- |
+| Hold to talk | Hold the shortcut | Release the shortcut |
+| Press to start/stop | Press once | Press again |
+| Double-tap Right Shift | Double-tap Right Shift | Double-tap again |
 
-Press `Escape` during recording to cancel without inserting anything. After transcription and optional formatting, Dictum pastes the result at the cursor and restores the previous clipboard contents when possible.
+Press `Escape` while recording to cancel. Dictum inserts nothing after cancellation.
 
-### Transform your previous dictation
+After transcription, Dictum pastes at the active cursor using `Ctrl+V`. It restores the previous text or image clipboard content when possible. If clipboard insertion fails, it falls back to direct Unicode typing.
 
-Press the command shortcut once, speak an instruction, and press it again. For example:
+### Long dictation
 
-- “Make it concise.”
-- “Turn it into bullet points.”
-- “Translate it to French.”
+Dictum 1.0 has no 30-second recording cutoff. Long recordings are divided into 25-second provider-safe WAV parts without dropping samples. The HUD reports progress such as:
 
-Command mode operates on the most recent block inserted by Dictum during the current session.
+```text
+Transcribing part 1 of 3
+Transcribing part 2 of 3
+Transcribing part 3 of 3
+```
 
-### Ask a question
+Each provider request may run for up to 90 seconds and retains the normal retry behavior. Completed part transcripts are combined in their original order before formatting and insertion.
 
-Use command mode and begin with `ask Dictum` or `answer`:
+For the best result:
+
+- Keep speaking at a consistent volume.
+- Natural short pauses are fine.
+- Wait for every part to finish before starting another dictation.
+- Use a stable internet connection for hosted providers.
+- Use the History page to confirm the complete stored transcript after insertion.
+
+The automated suite includes a 75-second regression that decodes all generated WAV parts and verifies that every captured sample is retained.
+
+### Transform the previous dictation
+
+The default command shortcut is `Ctrl + Shift + Period`:
+
+1. Press the command shortcut.
+2. Say an instruction such as “make it concise” or “turn it into bullet points”.
+3. Press the command shortcut again.
+
+Command mode replaces the most recent text block inserted by Dictum during the current session.
+
+### Ask Dictum
+
+Use command mode and start with `ask Dictum` or `answer`:
 
 ```text
 Ask Dictum: explain this error in one sentence.
@@ -255,175 +206,47 @@ The answer is inserted at the cursor without replacing the previous dictation.
 
 ### Dictionary and snippets
 
-- Add names, product terms, acronyms, and specialized vocabulary to **Dictionary**.
-- Create a snippet such as `my email` → `name@example.com` in **Snippets**.
-- Speak the exact snippet trigger and Dictum expands it before formatting and insertion.
-- When you edit a transcript from History, Dictum can learn changed vocabulary as automatic dictionary terms.
+- Add names, acronyms, products, and specialized vocabulary under **Dictionary**.
+- Add reusable exact phrases under **Snippets**.
+- Example: `my email` → `name@example.com`.
+- Edit a transcript from History to let Dictum learn corrected vocabulary.
 
 ## Providers
 
-| Provider | Runs where? | API key | Best for |
-| --- | --- | ---: | --- |
-| OpenRouter | Hosted | Required | Easiest first setup and access to the default Voxtral model. |
-| Mistral | Hosted | Required | Direct Mistral transcription and realtime support. |
-| Local / vLLM | Your server | No | Offline/self-hosted inference and full control over audio. |
-| Custom manifest | Hosted or self-hosted | Configurable | OpenAI-compatible transcription services. |
+| Provider | API key | Use case |
+| --- | ---: | --- |
+| OpenRouter | Required | Recommended hosted setup and default Voxtral transcription. |
+| Mistral | Required | Direct Mistral transcription and optional realtime transport. |
+| Local / vLLM | No | Self-hosted inference through an OpenAI-compatible server. |
+| Custom provider | Configurable | Another service exposing compatible transcription and chat endpoints. |
 
-API-key validation proves that the credential can access the provider. It does not guarantee that the account has inference credit. OpenRouter HTTP `402` errors mean the account or key has insufficient credit or spending quota.
+The default hosted model is `mistralai/voxtral-mini-transcribe`.
 
-Provider pricing and retention policies can change. Review the chosen provider's current terms before sending sensitive audio. Dictum's zero-retention option requests the provider-specific privacy flag when supported; it cannot independently guarantee a third party's behavior.
+Key validation confirms that the provider accepts the credential. It cannot confirm future inference balance. OpenRouter HTTP `402` means the account or key lacks credits or spending quota.
 
-## Local and offline transcription
+Provider pricing and retention policies can change. Review the provider's current terms before sending sensitive recordings. Dictum's zero-retention option requests supported privacy flags but cannot independently guarantee a third party's behavior.
 
-Dictum expects an OpenAI-compatible server with an `/audio/transcriptions` endpoint. The default local endpoint is `http://localhost:8000/v1` and the default model is `mistralai/Voxtral-Mini-3B-2507`.
+### Self-hosted provider
 
-One supported route is [vLLM](https://docs.vllm.ai/en/stable/). Follow its current installation guide for compatible operating systems, Python versions, and GPU hardware, then start an audio-capable server:
+Dictum expects:
 
-```sh
-pip install 'vllm[audio]'
-vllm serve mistralai/Voxtral-Mini-3B-2507 --port 8000
-```
+- An HTTP or HTTPS base URL
+- `POST /audio/transcriptions`
+- An OpenAI-compatible multipart transcription response
+- `POST /chat/completions` when AI formatting is enabled
 
-In Dictum:
-
-1. Open **Settings → Transcription**.
-2. Select **Local / vLLM**.
-3. Set the local server to `http://localhost:8000/v1` or the HTTPS address of your self-hosted server.
-4. Keep the model name aligned with the model served by vLLM.
-5. Save and run a short test dictation.
-
-Dictum does not currently download or manage model weights. That remains the responsibility of the local inference server. A remote self-hosted server is private from hosted AI vendors, but it is not offline unless it is reachable only on your local network.
-
-For experimental realtime transcription, serve `mistralai/Voxtral-Mini-4B-Realtime-2602`, choose a realtime-capable provider, and enable **Realtime transcription** in Settings. Dictum falls back to batch transcription when no final realtime transcript is available.
-
-## CLI
-
-Build the standalone CLI:
-
-```sh
-cargo build --manifest-path src-tauri/Cargo.toml --release --bin dictum-cli
-```
-
-Examples on macOS/Linux:
-
-```sh
-./src-tauri/target/release/dictum-cli transcribe recording.wav
-./src-tauri/target/release/dictum-cli transcribe recording.wav \
-  --provider local \
-  --model mistralai/Voxtral-Mini-3B-2507 \
-  --endpoint http://localhost:8000/v1
-./src-tauri/target/release/dictum-cli config-path
-```
-
-On Windows, use `src-tauri\target\release\dictum-cli.exe`. The v0.1 CLI accepts PCM WAV input and prints only the transcript to standard output, making it suitable for scripts.
-
-The CLI reads Dictum's normal non-secret settings and operating-system keychain. For ephemeral automation, hosted keys can instead be supplied through `OPENROUTER_API_KEY` or `MISTRAL_API_KEY`.
-
-Set `DICTUM_DATA_DIR` to isolate the database and configuration during tests or automation:
-
-```sh
-DICTUM_DATA_DIR=/tmp/dictum-test ./src-tauri/target/release/dictum-cli config-path
-```
-
-## How it works
-
-```mermaid
-flowchart LR
-    A[Global shortcut] --> B[In-memory microphone capture]
-    B --> C[16 kHz mono, silence trim, safe chunks]
-    C --> D[Transcription provider]
-    D --> E[Dictionary bias and snippet expansion]
-    E --> F{Formatting enabled?}
-    F -->|Yes| G[LLM polish and app-aware tone]
-    F -->|No| H[Final text]
-    G --> H
-    H --> I[Clipboard or keystroke injection]
-    I --> J[Focused application]
-    H -. optional .-> K[Local SQLite history]
-```
-
-The React interface communicates with a Rust backend through Tauri commands and events. Rust owns the security-sensitive and platform-sensitive work: audio capture, shortcuts, keychain access, provider requests, SQLite, text injection, the tray, and the overlay window.
-
-### Repository layout
+The built-in local configuration defaults to:
 
 ```text
-.
-├── src/                         React and TypeScript interface
-│   ├── routes/                  Onboarding, home, history, settings, and HUD
-│   ├── components/              Shared UI components
-│   └── lib/                     Tauri bridge, types, defaults, and hotkey capture
-├── src-tauri/                   Rust desktop backend
-│   ├── src/audio.rs             Capture, level reporting, trimming, and chunking
-│   ├── src/hotkey.rs            Global shortcuts and double-tap handling
-│   ├── src/transcribe/          Batch and realtime provider implementations
-│   ├── src/format.rs            Formatting, command mode, and snippets
-│   ├── src/inject.rs            Clipboard and synthetic-key insertion
-│   ├── src/store.rs             Settings, SQLite, providers, and history
-│   ├── src/keychain.rs          Operating-system credential storage
-│   ├── src/sync.rs              Encrypted self-hosted sync
-│   └── src/bin/dictum-cli.rs    Scriptable CLI
-├── examples/providers/          Example provider manifests
-├── docs/                        Release and specification coverage notes
-├── dictum-spec.md               Product and technical specification
-└── .github/workflows/           Cross-platform CI and release automation
+Endpoint: http://localhost:8000/v1
+Model:    mistralai/Voxtral-Mini-3B-2507
 ```
 
-## Privacy and data handling
+Start the compatible inference server, then select **Local / vLLM** in Settings and enter its endpoint and exact served model name. Dictum does not download or manage model weights.
 
-| Data | Stored where? | Sent where? |
-| --- | --- | --- |
-| API keys | OS Keychain, Windows Credential Manager, or Linux Secret Service | Only to the selected provider as authentication. |
-| Raw audio | Memory only during the active recording | To the selected transcription provider, or only to your local server in local mode. |
-| Transcript history | Local SQLite database when history is enabled | Nowhere unless encrypted sync is explicitly enabled. |
-| Settings, dictionary, snippets | Local configuration/SQLite | Included in encrypted sync only when explicitly pushed. |
-| App context | A coarse category such as chat, code, formal writing, or general | Included in the optional formatting prompt; the window title itself is not sent. |
+### Custom provider manifest
 
-Additional guarantees and boundaries:
-
-- Dictum contains no analytics SDK, advertising SDK, remote font, crash reporter, or telemetry endpoint.
-- The backend rejects any setting that requests raw-audio history storage.
-- OpenRouter zero-data-retention flags are sent when that option is enabled.
-- Encrypted sync derives a key with Argon2 and encrypts the payload with AES-256-GCM before upload.
-- HTTP sync endpoints are accepted only on localhost; remote sync requires HTTPS.
-- Provider plugins are validated JSON data and cannot execute third-party code.
-
-See [SECURITY.md](SECURITY.md) for the security policy and vulnerability-reporting process.
-
-## Development
-
-### Common commands
-
-| Command | Purpose |
-| --- | --- |
-| `npm ci` | Install the exact JavaScript dependency versions from the lockfile. |
-| `npm run desktop:dev` | Run the complete Tauri desktop application with hot reload. |
-| `npm run dev` | Run only the browser UI with mock data. |
-| `npm test` | Run frontend unit and interaction tests once. |
-| `npm run test:watch` | Run frontend tests in watch mode. |
-| `npm run build` | Type-check and create the production frontend bundle. |
-| `npm run desktop:build` | Build optimized native application packages. |
-| `cargo test --manifest-path src-tauri/Cargo.toml --all-targets` | Run Rust unit and integration tests. |
-| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` | Run strict Rust linting. |
-| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | Check Rust formatting. |
-
-Before opening a pull request, run:
-
-```sh
-npm ci
-npm run build
-npm test
-cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path src-tauri/Cargo.toml --all-targets
-```
-
-Close the running development app before `cargo test --all-targets` on Windows; otherwise Windows may keep `dictum.exe` locked.
-
-### Adding a provider
-
-The simplest method is **Settings → Provider plugins**. A provider must expose OpenAI-compatible transcription and chat endpoints.
-
-For manual installation, copy a JSON manifest based on [examples/providers/deepgram-compatible.json](examples/providers/deepgram-compatible.json) into Dictum's platform configuration directory under `providers/`:
+The easiest method is **Settings → Provider plugins**. A manual manifest can also be based on [examples/providers/deepgram-compatible.json](examples/providers/deepgram-compatible.json):
 
 ```json
 {
@@ -438,101 +261,247 @@ For manual installation, copy a JSON manifest based on [examples/providers/deepg
 }
 ```
 
-Provider IDs may contain only ASCII letters, numbers, hyphens, and underscores. Built-in provider IDs cannot be replaced. Select the new provider in Settings to validate and store its API key.
+Provider IDs may contain only ASCII letters, numbers, hyphens, and underscores. Built-in providers cannot be replaced.
 
-### Project contracts
+## Privacy and local data
 
-- [dictum-spec.md](dictum-spec.md) is the product and technical specification.
-- [docs/spec-coverage.md](docs/spec-coverage.md) maps specification requirements to source and verification evidence.
-- [docs/releasing.md](docs/releasing.md) documents signed release preparation.
-- [CONTRIBUTING.md](CONTRIBUTING.md) contains contributor expectations.
+| Data | Windows location or behavior |
+| --- | --- |
+| API keys | Windows Credential Manager only |
+| Raw microphone audio | Memory only during capture and transcription |
+| Settings | Dictum's Windows application configuration directory |
+| History, dictionary, snippets | Local `dictum.sqlite3` database |
+| Provider manifests | `providers` inside Dictum's configuration directory |
+| Optional sync | Argon2-derived AES-256-GCM encrypted document at your endpoint |
+
+Run `dictum-cli config-path` to print the exact SQLite location for the current Windows user.
+
+Dictum contains no analytics SDK, advertising SDK, remote font, crash reporter, or telemetry endpoint. The backend rejects raw-audio history storage. HTTP sync is allowed only on localhost; remote sync requires HTTPS.
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and supported-version policy.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Windows global shortcut] --> B[In-memory microphone capture]
+    B --> C[16 kHz mono and silence trim]
+    C --> D[Complete 25-second WAV parts]
+    D --> E[Selected transcription provider]
+    E --> F[Ordered transcript merge]
+    F --> G[Snippets and optional AI formatting]
+    G --> H[Windows clipboard or Unicode typing]
+    H --> I[Focused Windows application]
+    G -. optional .-> J[Local SQLite history]
+```
+
+The React interface communicates with a Rust backend through Tauri commands and events. Rust owns microphone capture, global shortcuts, Windows Credential Manager access, provider requests, SQLite, text insertion, the tray, updater, and HUD.
+
+### Repository structure
+
+```text
+.
+├── src/                         React and TypeScript interface
+│   ├── routes/                  Onboarding, dashboard, settings, history, HUD
+│   └── lib/                     Tauri bridge, types, defaults, shortcut capture
+├── src-tauri/                   Windows Rust backend
+│   ├── src/audio.rs             Capture, level, trim, resample, long-audio chunks
+│   ├── src/hotkey.rs            Windows global shortcuts
+│   ├── src/transcribe/          Batch and realtime providers
+│   ├── src/format.rs            Formatting, commands, snippets
+│   ├── src/inject.rs            Windows clipboard and Unicode insertion
+│   ├── src/store.rs             Settings, SQLite, providers, history
+│   ├── src/keychain.rs          Windows Credential Manager
+│   └── src/bin/dictum-cli.rs    Windows command-line client
+├── examples/providers/          Example provider manifests
+├── docs/                        Windows release documentation
+└── .github/workflows/           Windows CI and signed release automation
+```
+
+## Build from source
+
+### Prerequisites
+
+Install on 64-bit Windows 10 or Windows 11:
+
+1. [Git for Windows](https://git-scm.com/download/win)
+2. [Node.js 22 LTS](https://nodejs.org/)
+3. [Rust](https://www.rust-lang.org/tools/install) 1.81 or newer using the MSVC toolchain
+4. [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**
+5. Microsoft Edge WebView2 Runtime
+
+Rust can be installed from PowerShell:
+
+```powershell
+winget install --id Rustlang.Rustup
+rustup default stable-msvc
+```
+
+Restart PowerShell after installing the toolchain, then verify:
+
+```powershell
+node --version
+npm --version
+rustc --version
+cargo --version
+```
+
+### Clone and run
+
+```powershell
+git clone https://github.com/dictum-app/dictum.git
+Set-Location dictum
+npm ci
+npm run desktop:dev
+```
+
+The first Rust compilation can take several minutes. Keep PowerShell open while Dictum runs; development logs appear there.
+
+`npm run dev` starts only the browser interface with mock data. Use `npm run desktop:dev` for microphone, shortcut, tray, keychain, and insertion testing.
+
+### Build Windows installers
+
+```powershell
+npm run desktop:build
+```
+
+The NSIS and MSI artifacts are written below:
+
+```text
+src-tauri\target\release\bundle\nsis\
+src-tauri\target\release\bundle\msi\
+```
+
+Local packages are not Authenticode-signed unless a certificate is supplied. Public GitHub releases must use the signed release workflow described in [docs/releasing.md](docs/releasing.md).
+
+## CLI
+
+Build the Windows CLI:
+
+```powershell
+cargo build --manifest-path src-tauri/Cargo.toml --release --bin dictum-cli
+```
+
+Examples:
+
+```powershell
+.\src-tauri\target\release\dictum-cli.exe transcribe .\recording.wav
+.\src-tauri\target\release\dictum-cli.exe transcribe .\recording.wav --provider local --model mistralai/Voxtral-Mini-3B-2507 --endpoint http://localhost:8000/v1
+.\src-tauri\target\release\dictum-cli.exe config-path
+```
+
+The 1.0 CLI accepts PCM WAV input and prints the transcript to standard output. It reads the same non-secret settings and Windows credentials as the desktop app. `OPENROUTER_API_KEY` and `MISTRAL_API_KEY` can override Credential Manager for ephemeral automation.
+
+To isolate CLI data during a test:
+
+```powershell
+$env:DICTUM_DATA_DIR = Join-Path $env:TEMP 'dictum-cli-test'
+.\src-tauri\target\release\dictum-cli.exe config-path
+```
+
+## Development and validation
+
+| Command | Purpose |
+| --- | --- |
+| `npm ci` | Install exact frontend dependencies. |
+| `npm run desktop:dev` | Run the complete Windows application with hot reload. |
+| `npm test` | Run frontend tests. |
+| `npm run build` | Type-check and build the frontend. |
+| `npm run desktop:build` | Build Windows NSIS and MSI packages. |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | Check Rust formatting. |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` | Run strict Rust linting. |
+| `cargo test --manifest-path src-tauri/Cargo.toml --all-targets` | Run all Rust and long-audio tests. |
+
+Run every release gate from PowerShell:
+
+```powershell
+npm ci
+npm run build
+npm test
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+```
+
+Close the running development app before the Rust tests; Windows otherwise keeps `dictum.exe` locked.
+
+See [docs/windows-release-checklist.md](docs/windows-release-checklist.md) for the automated and real-hardware acceptance checklist.
 
 ## Troubleshooting
 
 <details>
 <summary><strong>The microphone meter does not move</strong></summary>
 
-1. Return to the microphone onboarding page or open Settings.
-2. Select the same microphone that works in another application.
-3. Confirm that Dictum has OS-level microphone permission.
-4. On Windows, enable both microphone access and **Let desktop apps access your microphone**.
-5. Speak for several seconds and watch the meter before stopping.
-
-If the meter moves, the microphone is working; any later error is related to transcription rather than capture.
+Select the intended microphone and click **Test access**. In Windows Settings, open **Privacy & security → Microphone** and enable microphone access for desktop applications. Close other software that may be holding the device exclusively.
 
 </details>
 
 <details>
 <summary><strong>“No speech was detected”</strong></summary>
 
-The recording contained too little usable speech after silence trimming. Speak closer to the selected microphone, record for a few seconds, or enable **Whisper mode** for very quiet speech.
+Speak for several seconds while watching the meter. Move closer to the microphone or enable Whisper mode for quiet speech. This message belongs to an actual voice test and does not block shortcut setup.
 
 </details>
 
 <details>
-<summary><strong>OpenRouter says the provider quota is exhausted</strong></summary>
+<summary><strong>A recording longer than 30 seconds is incomplete</strong></summary>
 
-The API key was accepted, but OpenRouter returned HTTP `402`. Add credits, increase the key's spending limit, or use a local provider. Validating a key does not verify its inference balance.
+Confirm that you are running Dictum 1.0.0 or newer. During transcription, the HUD should show every part in order. Wait until all parts finish. If a hosted provider fails on a specific part, check the network and provider status, then include the part number and terminal error in a bug report without including private transcript text.
+
+</details>
+
+<details>
+<summary><strong>OpenRouter reports exhausted quota</strong></summary>
+
+The key is valid, but OpenRouter returned HTTP `402`. Add credits, raise the key spending limit, or choose a self-hosted provider.
 
 </details>
 
 <details>
 <summary><strong>The shortcut cannot be registered</strong></summary>
 
-The shortcut may already belong to Windows, macOS, another application, or Dictum's command mode. Choose another preset or record a different combination. Avoid ordinary unmodified letter keys.
+Windows or another application already owns it, or it conflicts with Dictum's command shortcut. Choose another suggestion or record a different combination.
 
 </details>
 
 <details>
-<summary><strong>Text is transcribed but not inserted</strong></summary>
+<summary><strong>Transcription succeeds but text is not inserted</strong></summary>
 
-- On macOS, grant Accessibility permission to Dictum and restart the app.
-- On Windows, try the alternate injection method in Settings and avoid running the target app at a higher privilege level than Dictum.
-- On Linux, use an X11 session with the required input tools. Wayland support is currently limited.
-- You can still copy the transcript from History while diagnosing insertion.
+Do not run the target application at a higher privilege level than Dictum. Try the alternate injection mode in Settings. The transcript remains available in History for copying while you diagnose insertion.
 
 </details>
 
 <details>
 <summary><strong>The local provider cannot be reached</strong></summary>
 
-Check that the server is running, the endpoint includes `/v1`, the configured model exactly matches the served model, and `/audio/transcriptions` is available. Test the provider's `/v1/models` endpoint from the same machine that runs Dictum.
+Confirm that the endpoint includes `/v1`, the configured model exactly matches the served model, and `/audio/transcriptions` is available from the Windows machine running Dictum.
 
 </details>
 
 <details>
-<summary><strong>`npm run desktop:dev` takes a long time or appears stuck</strong></summary>
+<summary><strong>`npm run desktop:dev` appears stuck</strong></summary>
 
-The first Rust compilation can take several minutes. A successful launch keeps the command running until Dictum closes. If compilation fails, confirm the platform-specific Tauri prerequisites, then rerun the command from the repository root.
+The first Rust build may take several minutes. A successful command remains running until Dictum exits. If compilation fails, verify the MSVC Rust toolchain, C++ Build Tools, and WebView2, then rerun from the repository root.
 
 </details>
 
-If the problem remains, open an issue with:
+When opening an issue, include:
 
-- Operating system and version
+- Windows version and build
 - Dictum version or commit hash
-- Provider and model name, without any API key
+- Provider and model, without the API key
 - Exact reproduction steps
-- The relevant terminal error, with secrets and personal transcript text removed
+- Relevant terminal output with keys and personal text removed
 
-## Contributing
+## Contributing and security
 
-Contributions are welcome—bug fixes, platform testing, documentation, accessibility improvements, provider compatibility, and focused feature work all help.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Dictum 1.x accepts Windows-focused changes; do not add non-Windows build targets, telemetry, raw-audio persistence, secret logging, or real credentials in fixtures.
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. For substantial architectural changes, start with an issue so the approach can be discussed. Do not add telemetry, persist raw audio, log secrets, or place real credentials in fixtures.
+Report security vulnerabilities privately using the process in [SECURITY.md](SECURITY.md), not through a public issue.
 
-Security vulnerabilities should not be reported in a public issue. Follow [SECURITY.md](SECURITY.md) and use a private GitHub Security Advisory.
+## Release status
 
-## Roadmap and known limitations
-
-- Publish signed Windows, macOS, and Linux installers
-- Complete the real-hardware platform smoke-test matrix
-- Improve Wayland input through supported desktop portals or dedicated integrations
-- Make local-model installation and health checks easier
-- Expand realtime-provider compatibility
-- Improve accessibility and localization across the desktop UI
-
-The detailed implementation status lives in [docs/spec-coverage.md](docs/spec-coverage.md).
+Dictum is version 1.0.0 and the codebase is configured for a final Windows release. Before publishing a GitHub tag, the maintainer must configure the Windows Authenticode and Tauri updater secrets and complete [the Windows release checklist](docs/windows-release-checklist.md).
 
 ## License and acknowledgements
 
@@ -543,5 +512,5 @@ Dictum is built with [Tauri](https://tauri.app/), [React](https://react.dev/), a
 ---
 
 <p align="center">
-  Built for people who want excellent voice dictation without giving up choice or control.
+  Voice dictation for Windows, with choice and control built in.
 </p>

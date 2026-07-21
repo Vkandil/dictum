@@ -9,7 +9,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 const TARGET_RATE: u32 = 16_000;
-const MAX_CHUNK_SECONDS: usize = 29;
+const MAX_CHUNK_SECONDS: usize = 25;
 
 #[derive(Debug, Clone)]
 pub struct AudioChunk {
@@ -32,6 +32,7 @@ pub struct AudioDevice {
 
 struct ActiveRecording {
     stop: mpsc::Sender<()>,
+    finished: mpsc::Receiver<()>,
     samples: Arc<Mutex<Vec<f32>>>,
     sample_rate: u32,
     channels: usize,
@@ -111,6 +112,7 @@ impl AudioRecorder {
         }
         let thread_samples = samples.clone();
         let (stop_tx, stop_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::sync_channel(1);
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
             let live = LiveCapture {
@@ -140,6 +142,7 @@ impl AudioRecorder {
                     let _ = ready_tx.send(Err(error.to_string()));
                 }
             }
+            let _ = finished_tx.send(());
         });
         ready_rx
             .recv_timeout(Duration::from_secs(4))
@@ -147,6 +150,7 @@ impl AudioRecorder {
             .map_err(anyhow::Error::msg)?;
         *guard = Some(ActiveRecording {
             stop: stop_tx,
+            finished: finished_rx,
             samples,
             sample_rate,
             channels,
@@ -164,8 +168,12 @@ impl AudioRecorder {
             .take()
             .context("recording is not active")?;
         let _ = recording.stop.send(());
+        recording
+            .finished
+            .recv_timeout(Duration::from_secs(2))
+            .context("microphone stream did not stop cleanly")?;
         let elapsed_ms = recording.started.elapsed().as_millis() as u64;
-        let samples = recording.samples.lock().unwrap().clone();
+        let samples = std::mem::take(&mut *recording.samples.lock().unwrap());
         let mono = downmix(&samples, recording.channels);
         let mut normalized = resample_linear(&mono, recording.sample_rate, TARGET_RATE);
         if recording.whisper_mode {
@@ -180,13 +188,7 @@ impl AudioRecorder {
         if trimmed.len() < (TARGET_RATE as usize / 8) {
             bail!("no speech detected");
         }
-        let mut chunks = Vec::new();
-        for samples in trimmed.chunks(TARGET_RATE as usize * MAX_CHUNK_SECONDS) {
-            chunks.push(AudioChunk {
-                wav: encode_wav(samples)?,
-                duration_ms: (samples.len() as u64 * 1000) / TARGET_RATE as u64,
-            });
-        }
+        let chunks = encode_chunks(trimmed)?;
         Ok(AudioCapture {
             chunks,
             duration_ms: elapsed_ms,
@@ -335,6 +337,18 @@ fn encode_wav(samples: &[f32]) -> Result<Vec<u8>> {
     Ok(cursor.into_inner())
 }
 
+fn encode_chunks(samples: &[f32]) -> Result<Vec<AudioChunk>> {
+    samples
+        .chunks(TARGET_RATE as usize * MAX_CHUNK_SECONDS)
+        .map(|samples| {
+            Ok(AudioChunk {
+                wav: encode_wav(samples)?,
+                duration_ms: (samples.len() as u64 * 1000) / TARGET_RATE as u64,
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,10 +364,30 @@ mod tests {
     #[test]
     fn chunks_never_exceed_encoder_limit() {
         let data = vec![0.1; TARGET_RATE as usize * 31];
-        let chunks: Vec<_> = data
-            .chunks(TARGET_RATE as usize * MAX_CHUNK_SECONDS)
-            .collect();
-        assert!(chunks.iter().all(|c| c.len() <= TARGET_RATE as usize * 29));
+        let chunks = encode_chunks(&data).unwrap();
+        assert!(chunks.iter().all(|chunk| chunk.duration_ms <= 25_000));
+    }
+
+    #[test]
+    fn seventy_five_second_recording_keeps_every_sample_across_chunks() {
+        let sample_count = TARGET_RATE as usize * 75;
+        let data = vec![0.1; sample_count];
+        let chunks = encode_chunks(&data).unwrap();
+
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(
+            chunks.iter().map(|chunk| chunk.duration_ms).sum::<u64>(),
+            75_000
+        );
+        let encoded_samples = chunks
+            .iter()
+            .map(|chunk| {
+                hound::WavReader::new(Cursor::new(&chunk.wav))
+                    .unwrap()
+                    .duration() as usize
+            })
+            .sum::<usize>();
+        assert_eq!(encoded_samples, sample_count);
     }
 
     #[test]

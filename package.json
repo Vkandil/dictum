@@ -1,8 +1,8 @@
 {
   "name": "dictum",
   "private": true,
-  "version": "0.1.0",
-  "description": "Open-source, local-first, system-wide voice dictation",
+  "version": "1.0.0",
+  "description": "Open-source, local-first, system-wide voice dictation for Windows",
   "type": "module",
   "scripts": {
     "dev": "vite",

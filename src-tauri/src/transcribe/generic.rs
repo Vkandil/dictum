@@ -11,6 +11,8 @@ use super::{TranscribeError, TranscribeOpts, Transcript, TranscriptionProvider};
 use crate::audio::AudioChunk;
 use crate::store::ProviderManifest;
 
+const TRANSCRIPTION_TIMEOUT: Duration = Duration::from_secs(90);
+
 pub struct HttpTranscriptionProvider {
     manifest: ProviderManifest,
     api_key: Option<String>,
@@ -23,8 +25,8 @@ impl HttpTranscriptionProvider {
             manifest,
             api_key,
             client: Client::builder()
-                .timeout(Duration::from_secs(10))
-                .user_agent("Dictum/0.1 (https://github.com/dictum-app/dictum)")
+                .timeout(TRANSCRIPTION_TIMEOUT)
+                .user_agent("Dictum/1.0 (https://github.com/dictum-app/dictum)")
                 .build()
                 .expect("HTTP client"),
         }

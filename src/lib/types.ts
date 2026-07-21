@@ -76,7 +76,6 @@ export interface BootstrapData {
   dictionary: DictionaryTerm[];
   snippets: Snippet[];
   providers: ProviderManifest[];
-  platform: string;
   version: string;
 }
 

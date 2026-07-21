@@ -25,10 +25,7 @@ pub fn replace_previous(text: &str, previous: &str, mode: &str) -> Result<()> {
     let mut enigo =
         Enigo::new(&Settings::default()).context("could not initialize system input")?;
     enigo.key(Key::Shift, Direction::Press)?;
-    #[cfg(windows)]
     let length = previous.encode_utf16().count();
-    #[cfg(not(windows))]
-    let length = previous.chars().count();
     let mut selection = Ok(());
     for _ in 0..length {
         if let Err(error) = enigo.key(Key::LeftArrow, Direction::Click) {
@@ -67,9 +64,6 @@ fn paste(text: &str) -> Result<()> {
     thread::sleep(Duration::from_millis(20));
     let mut enigo =
         Enigo::new(&Settings::default()).context("could not initialize system input")?;
-    #[cfg(target_os = "macos")]
-    let modifier = Key::Meta;
-    #[cfg(not(target_os = "macos"))]
     let modifier = Key::Control;
     enigo.key(modifier, Direction::Press)?;
     enigo.key(Key::Unicode('v'), Direction::Click)?;

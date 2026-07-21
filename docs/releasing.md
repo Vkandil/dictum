@@ -1,21 +1,30 @@
-# Releasing
+# Releasing Dictum for Windows
 
-The `release.yml` workflow builds platform bundles and a signed Tauri updater manifest from a `v*` tag.
+The `Windows Release` GitHub Actions workflow builds signed NSIS and MSI packages plus the signed Tauri updater manifest from a `v*` tag. Dictum 1.0 publishes Windows artifacts only.
 
-The updater keypair for this checkout is in the git-ignored `.secrets/` directory. Back up the private key before the first public release: losing it prevents future updates to installed clients.
+## Required GitHub secrets
 
-Configure these GitHub secrets before the first public release:
+- `TAURI_SIGNING_PRIVATE_KEY`: the Tauri updater private key. The matching public key is embedded in `src-tauri/tauri.conf.json`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the updater-key password, or an empty value if the key has none.
+- `WINDOWS_CERTIFICATE`: a Base64-encoded Authenticode `.pfx` certificate.
+- `WINDOWS_CERTIFICATE_PASSWORD`: the password for that certificate.
 
-- `TAURI_SIGNING_PRIVATE_KEY`: the contents of the locally generated, git-ignored `.secrets/dictum-updater.key`. The matching public key is already embedded in `src-tauri/tauri.conf.json`. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to an empty value for this key.
-- Apple: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID`.
-- Windows: `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD`, or the appropriate Azure Trusted Signing variables supported by the current Tauri action.
+Back up the updater private key securely. Losing it prevents existing installations from trusting future automatic updates. Never commit updater keys, certificates, API keys, or passwords.
 
-Release procedure:
+## Release procedure
 
-1. Update versions in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.
-2. Run all local checks and the platform smoke-test list in `spec-coverage.md`.
-3. Merge to `main`, tag `vX.Y.Z`, and push the tag.
-4. Confirm the draft GitHub release contains `.dmg`, `.msi`/NSIS, `.AppImage`, `.deb`, and `latest.json` artifacts as applicable.
-5. Test updater installation from the previous version, then publish the draft.
+1. Confirm the same version is present in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`.
+2. Complete [windows-release-checklist.md](windows-release-checklist.md).
+3. Merge to `main` and confirm the `Windows CI` workflow passes.
+4. Create and push an annotated tag, for example `v1.0.0`.
+5. Confirm the draft GitHub release contains signed NSIS, MSI, updater, and signature artifacts.
+6. Download the artifacts onto a clean Windows VM and repeat the install, launch, long-dictation, update, and uninstall checks.
+7. Verify the generated `SHA256SUMS.txt` file and add user-facing release notes.
+8. Publish the draft release.
 
-Never commit signing keys, certificates, API keys, or notarization passwords.
+Example tag commands:
+
+```powershell
+git tag -a v1.0.0 -m "Dictum 1.0.0"
+git push origin v1.0.0
+```

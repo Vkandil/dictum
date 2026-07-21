@@ -85,7 +85,7 @@ export async function runSync(direction: "push" | "pull", password: string): Pro
   if (isTauri()) await invoke("run_sync", { direction, password });
 }
 
-export async function openPermissions(kind: "microphone" | "accessibility" | "inputMonitoring"): Promise<void> {
+export async function openPermissions(kind: "microphone"): Promise<void> {
   if (isTauri()) await invoke("open_permissions", { kind });
 }
 

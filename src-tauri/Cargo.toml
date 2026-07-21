@@ -1,8 +1,8 @@
 [package]
 name = "dictum"
-version = "0.1.0"
+version = "1.0.0"
 default-run = "dictum"
-description = "Open-source, local-first, system-wide voice dictation"
+description = "Open-source, local-first, system-wide voice dictation for Windows"
 authors = ["Dictum contributors"]
 license = "MIT"
 repository = "https://github.com/dictum-app/dictum"
@@ -38,14 +38,14 @@ directories = "6"
 enigo = "0.2"
 futures-util = "0.3"
 hound = "3.5"
-keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
+keyring = { version = "3.6", default-features = false, features = ["windows-native"] }
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-opener = "2"
@@ -58,10 +58,8 @@ tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 url = "2"
 uuid = { version = "1", features = ["v4"] }
 
-[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
-rdev = "0.5"
-
 [target.'cfg(windows)'.dependencies]
+rdev = "0.5"
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [features]

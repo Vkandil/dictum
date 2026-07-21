@@ -1,6 +1,6 @@
 # Security policy
 
-Please report vulnerabilities privately through GitHub Security Advisories rather than a public issue. Include affected versions, platform, impact, and reproduction steps.
+Please report vulnerabilities privately through GitHub Security Advisories rather than a public issue. Include the affected Dictum version, Windows version/build, impact, and reproduction steps.
 
 Dictum’s trust boundaries are deliberately small:
 
@@ -10,4 +10,4 @@ Dictum’s trust boundaries are deliberately small:
 - Audio exists only in memory and is never included in logs or history.
 - Sync payloads use Argon2-derived AES-256-GCM encryption before upload.
 
-No support window is promised before the first stable release. Security fixes target the latest release branch.
+Security fixes target the latest stable 1.x release. Older releases may be asked to update before a report is investigated.

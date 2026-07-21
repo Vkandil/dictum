@@ -1,3 +1,6 @@
+#[cfg(not(target_os = "windows"))]
+compile_error!("Dictum 1.0 supports Windows only.");
+
 pub mod audio;
 pub mod commands;
 pub mod focus;
@@ -17,7 +20,6 @@ use tauri::{
     tray::TrayIconBuilder,
     Emitter, Manager, WindowEvent,
 };
-use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::Builder as ShortcutBuilder;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 #[cfg(not(debug_assertions))]
@@ -34,10 +36,11 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec!["--hidden"]),
-        ))
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .arg("--hidden")
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(ShortcutBuilder::new().with_handler(hotkey::handle).build())

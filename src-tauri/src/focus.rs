@@ -33,7 +33,6 @@ pub fn current() -> FocusedApp {
     }
 }
 
-#[cfg(windows)]
 fn platform_title() -> Option<String> {
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
@@ -48,22 +47,4 @@ fn platform_title() -> Option<String> {
         let copied = GetWindowTextW(window, &mut buffer);
         Some(String::from_utf16_lossy(&buffer[..copied as usize]))
     }
-}
-
-#[cfg(target_os = "macos")]
-fn platform_title() -> Option<String> {
-    std::process::Command::new("osascript").args(["-e", "tell application \"System Events\" to get name of first application process whose frontmost is true"]).output().ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-fn platform_title() -> Option<String> {
-    std::process::Command::new("sh")
-        .args([
-            "-c",
-            "command -v xdotool >/dev/null && xdotool getactivewindow getwindowname",
-        ])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
 }

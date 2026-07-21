@@ -57,7 +57,6 @@ pub struct BootstrapData {
     dictionary: Vec<DictionaryTerm>,
     snippets: Vec<Snippet>,
     providers: Vec<ProviderManifest>,
-    platform: &'static str,
     version: &'static str,
 }
 
@@ -95,7 +94,6 @@ pub fn bootstrap(state: State<'_, AppState>) -> Result<BootstrapData, String> {
         dictionary: state.store.dictionary().map_err(display)?,
         snippets: state.store.snippets().map_err(display)?,
         providers,
-        platform: std::env::consts::OS,
         version: env!("CARGO_PKG_VERSION"),
     })
 }
@@ -391,11 +389,30 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             cost = capture.duration_ms as f64 / 60_000.0 * 0.006;
         }
     }
-    for chunk in if raw_parts.is_empty() {
+    let chunks = if raw_parts.is_empty() {
         capture.chunks.as_slice()
     } else {
         &[]
-    } {
+    };
+    let chunk_count = chunks.len();
+    for (chunk_index, chunk) in chunks.iter().enumerate() {
+        let part_error = format!(
+            "transcription part {} of {chunk_count} failed",
+            chunk_index + 1
+        );
+        if chunk_count > 1 {
+            let progress = format!("Transcribing part {} of {chunk_count}", chunk_index + 1);
+            emit(
+                app,
+                DictationEvent {
+                    phase: "transcribing",
+                    level: None,
+                    message: Some(&progress),
+                    text: None,
+                    error_code: None,
+                },
+            );
+        }
         let primary = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = provider.transcribe(chunk, &options) => result };
         let (transcript, billed_model, billed_provider) = match primary {
             Ok(value) => (value, settings.model.clone(), settings.provider.clone()),
@@ -404,7 +421,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
                     let fallback_manifest = state.store.provider(fallback_id)?;
                     let fallback_key = keychain::get(fallback_id)?;
                     if fallback_manifest.requires_api_key && fallback_key.is_none() {
-                        return Err(primary_error.into());
+                        return Err(anyhow::Error::new(primary_error).context(part_error));
                     }
                     let fallback_model = fallback_manifest
                         .models
@@ -420,10 +437,13 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
                     );
                     let mut fallback_options = options.clone();
                     fallback_options.model = fallback_model.clone();
-                    let transcript = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = fallback.transcribe(chunk, &fallback_options) => result.map_err(|_| primary_error)? };
+                    let transcript = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = fallback.transcribe(chunk, &fallback_options) => result };
+                    let transcript = transcript.map_err(|_| {
+                        anyhow::Error::new(primary_error).context(part_error.clone())
+                    })?;
                     (transcript, fallback_model, fallback_id.clone())
                 } else {
-                    return Err(primary_error.into());
+                    return Err(anyhow::Error::new(primary_error).context(part_error));
                 }
             }
         };
@@ -435,7 +455,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             &billed_provider,
         ));
     }
-    let raw = raw_parts.join(" ");
+    let raw = combine_transcript_parts(&raw_parts);
     let snippets: Vec<_> = state
         .store
         .snippets()?
@@ -554,6 +574,15 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         state.store.purge_history(settings.history.retention_days)?;
     }
     Ok(final_text)
+}
+
+fn combine_transcript_parts(parts: &[String]) -> String {
+    parts
+        .iter()
+        .map(|part| part.trim())
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 async fn run_realtime(
@@ -697,32 +726,12 @@ pub async fn run_sync(
 
 #[tauri::command]
 pub fn open_permissions(kind: String) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        let url = match kind.as_str() {
-            "microphone" => {
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-            }
-            "inputMonitoring" => {
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
-            }
-            _ => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-        };
-        tauri_plugin_opener::open_url(url, None::<&str>).map_err(display)?;
-    }
-    #[cfg(windows)]
-    {
-        let url = if kind == "microphone" {
-            "ms-settings:privacy-microphone"
-        } else {
-            "ms-settings:easeofaccess-keyboard"
-        };
-        tauri_plugin_opener::open_url(url, None::<&str>).map_err(display)?;
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let _ = kind;
-    }
+    let url = if kind == "microphone" {
+        "ms-settings:privacy-microphone"
+    } else {
+        "ms-settings:easeofaccess-keyboard"
+    };
+    tauri_plugin_opener::open_url(url, None::<&str>).map_err(display)?;
     Ok(())
 }
 
@@ -805,6 +814,19 @@ mod tests {
         assert_eq!(
             correction_terms("Meet Victor at noon", "Meet Viktor at noon"),
             vec!["Viktor"]
+        );
+    }
+
+    #[test]
+    fn combines_every_long_recording_part_in_order() {
+        let parts = vec![
+            "first twenty-five seconds".to_string(),
+            " second twenty-five seconds ".to_string(),
+            "final twenty-five seconds".to_string(),
+        ];
+        assert_eq!(
+            combine_transcript_parts(&parts),
+            "first twenty-five seconds second twenty-five seconds final twenty-five seconds"
         );
     }
 }

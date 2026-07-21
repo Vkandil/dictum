@@ -20,13 +20,22 @@ export default function Overlay() {
 
   if (state.phase === "idle" || state.phase === "cancelled") return null;
   const working = state.phase === "transcribing" || state.phase === "formatting";
+  const title = state.phase === "listening"
+    ? state.text || "Listening"
+    : state.phase === "transcribing"
+      ? state.message || "Transcribing"
+      : state.phase === "formatting"
+        ? state.message || "Polishing"
+        : state.phase === "error"
+          ? state.message || "Something went wrong"
+          : state.text || "Inserted";
   return <main className="overlay-page">
     <div className={`hud ${state.phase}`}>
       <div className="hud-icon">
         {state.phase === "listening" ? <Mic size={17} /> : working ? <LoaderCircle className="spin" size={17} /> : state.phase === "error" ? <AlertCircle size={17} /> : <Check size={17} />}
       </div>
       <div className="hud-content">
-        <div className="hud-title">{state.phase === "listening" ? state.text || "Listening" : state.phase === "transcribing" ? "Transcribing" : state.phase === "formatting" ? "Polishing" : state.phase === "error" ? state.message || "Something went wrong" : state.text || "Inserted"}</div>
+        <div className="hud-title">{title}</div>
         {state.phase === "listening" ? <div className="waveform">{bars.map((height, index) => <i key={index} style={{ height }} />)}</div> : null}
         {working ? <div className="progress-line"><span /></div> : null}
       </div>

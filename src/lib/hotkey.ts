@@ -28,7 +28,7 @@ const KEY_NAMES: Record<string, string> = {
 
 export type ShortcutCapture = { combo?: string; error?: string; cancelled?: boolean };
 
-export function shortcutFromKeyEvent(event: Pick<KeyboardEvent, "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">, isMac: boolean): ShortcutCapture {
+export function shortcutFromKeyEvent(event: Pick<KeyboardEvent, "code" | "ctrlKey" | "altKey" | "shiftKey">): ShortcutCapture {
   if (event.code === "Escape") return { cancelled: true };
   if (["ControlLeft", "ControlRight", "MetaLeft", "MetaRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(event.code)) return {};
 
@@ -39,22 +39,18 @@ export function shortcutFromKeyEvent(event: Pick<KeyboardEvent, "code" | "ctrlKe
   if (!key) return { error: "That key cannot be used in a global shortcut." };
 
   const modifiers: string[] = [];
-  if (event.metaKey || (event.ctrlKey && !isMac)) modifiers.push("CommandOrControl");
-  else if (event.ctrlKey) modifiers.push("Control");
+  if (event.ctrlKey) modifiers.push("CommandOrControl");
   if (event.altKey) modifiers.push("Alt");
   if (event.shiftKey) modifiers.push("Shift");
   if (!modifiers.length && !key.startsWith("F")) return { error: "Include Ctrl, Alt, or Command so the shortcut does not trigger while typing." };
   return { combo: [...modifiers, key].join("+") };
 }
 
-export function displayShortcut(combo: string, isMac: boolean): string {
+export function displayShortcut(combo: string): string {
   return combo
     .split("+")
     .map((part) => {
-      if (part === "CommandOrControl") return isMac ? "⌘" : "Ctrl";
-      if (part === "Control") return isMac ? "⌃" : "Ctrl";
-      if (part === "Alt") return isMac ? "⌥" : "Alt";
-      if (part === "Shift") return isMac ? "⇧" : "Shift";
+      if (part === "CommandOrControl" || part === "Control") return "Ctrl";
       return part;
     })
     .join(" + ");
