@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, KeyRound, Keyboard, Mic, ShieldCheck, Sparkles } from "lucide-react";
 import { Button, Card, Field, Input, Select } from "../components/Ui";
 import { cancelRecording, checkHotkey, listenDictation, openPermissions, saveApiKey, saveSettings, startRecording, stopRecording, validateApiKey } from "../lib/bridge";
@@ -52,6 +52,9 @@ export default function Onboarding({ initial, platform, devices = [], hasOpenRou
   const [capturingShortcut, setCapturingShortcut] = useState(false);
   const [hotkeyStatus, setHotkeyStatus] = useState("");
   const [savingStep, setSavingStep] = useState(false);
+  const stepRef = useRef(step);
+  const trialActiveRef = useRef(false);
+  stepRef.current = step;
   const isMac = platform.toLowerCase().includes("mac");
   const steps = ["Welcome", "Connect", "Permissions", "Shortcut", "Try it"];
   const presets = useMemo(() => [
@@ -79,6 +82,11 @@ export default function Onboarding({ initial, platform, devices = [], hasOpenRou
   useEffect(() => {
     let off: (() => void) | undefined;
     void listenDictation((state: DictationState) => {
+      // Permission checks and global shortcuts also emit dictation events. Only
+      // surface transcription feedback during a trial on the final page.
+      if (stepRef.current !== 4) return;
+      if (state.phase === "listening") trialActiveRef.current = true;
+      if (!trialActiveRef.current) return;
       setDictationPhase(state.phase);
       if (state.phase === "listening" && typeof state.level === "number") {
         setMicLevel(state.level);
@@ -90,6 +98,7 @@ export default function Onboarding({ initial, platform, devices = [], hasOpenRou
       }
       if (state.phase === "error") setSetupError(friendlyDictationError(state.message ?? "Dictation failed", state.errorCode));
       if (["transcribing", "result", "error", "cancelled"].includes(state.phase)) setRecording(false);
+      if (["result", "error", "cancelled"].includes(state.phase)) trialActiveRef.current = false;
     }).then((unlisten) => { off = unlisten; });
     return () => off?.();
   }, []);
@@ -175,10 +184,12 @@ export default function Onboarding({ initial, platform, devices = [], hasOpenRou
     setMicLevel(0);
     setPeakLevel(0);
     setDictationPhase("listening");
+    trialActiveRef.current = true;
     try {
       await startRecording(false);
       setRecording(true);
     } catch (error) {
+      trialActiveRef.current = false;
       setRecording(false);
       setDictationPhase("error");
       setSetupError(friendlyDictationError(error));

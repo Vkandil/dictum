@@ -63,6 +63,7 @@ describe("onboarding", () => {
     await screen.findByText(/give it a voice/i);
 
     await waitFor(() => expect(bridge.listenHandler).toBeTypeOf("function"));
+    act(() => bridge.listenHandler?.({ phase: "listening", level: 0.02 }));
     act(() => bridge.listenHandler?.({ phase: "result", text: "Hello from Voxtral" }));
     expect(screen.getByRole("textbox")).toHaveValue("Hello from Voxtral");
   });
@@ -80,6 +81,21 @@ describe("onboarding", () => {
     await waitFor(() => expect(bridge.checkHotkey).toHaveBeenCalledWith("CommandOrControl+Shift+D"));
     expect(screen.getAllByText("Ctrl + Shift + D")).toHaveLength(2);
     expect(screen.getByText(/available and selected/i)).toBeInTheDocument();
+  });
+
+  it("keeps delayed recording errors off the shortcut page and proceeds to the trial", async () => {
+    render(<Onboarding initial={structuredClone(defaultSettings)} platform="windows" hasOpenRouterKey onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    await waitFor(() => expect(bridge.listenHandler).toBeTypeOf("function"));
+
+    act(() => bridge.listenHandler?.({ phase: "error", errorCode: "empty_audio", message: "no speech detected" }));
+    expect(screen.queryByText(/No speech was detected/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    await screen.findByText(/give it a voice/i);
+    expect(screen.queryByText(/No speech was detected/i)).not.toBeInTheDocument();
   });
 
   it("shows live microphone activity and explains provider quota separately", async () => {
