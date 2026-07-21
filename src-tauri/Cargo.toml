@@ -5,7 +5,7 @@ default-run = "dictum"
 description = "Open-source, local-first, system-wide voice dictation for Windows"
 authors = ["Dictum contributors"]
 license = "MIT"
-repository = "https://github.com/dictum-app/dictum"
+repository = "https://github.com/Vkandil/dictum"
 edition = "2021"
 rust-version = "1.81"
 

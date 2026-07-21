@@ -4,8 +4,15 @@ The `Windows Release` GitHub Actions workflow builds signed NSIS and MSI package
 
 ## Required GitHub secrets
 
-- `TAURI_SIGNING_PRIVATE_KEY`: the Tauri updater private key. The matching public key is embedded in `src-tauri/tauri.conf.json`.
+These are required for every release. They only sign the auto-updater manifest and cost nothing.
+
+- `TAURI_SIGNING_PRIVATE_KEY`: the Tauri updater private key (the contents of the minisign secret-key file). The matching public key is embedded in `src-tauri/tauri.conf.json`.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the updater-key password, or an empty value if the key has none.
+
+## Optional GitHub secrets (Authenticode)
+
+If both are set, the workflow Authenticode-signs the NSIS and MSI installers, which removes the Windows SmartScreen "unknown publisher" warning. If they are absent, the workflow still succeeds and publishes **unsigned** installers plus the signed updater manifest.
+
 - `WINDOWS_CERTIFICATE`: a Base64-encoded Authenticode `.pfx` certificate.
 - `WINDOWS_CERTIFICATE_PASSWORD`: the password for that certificate.
 

@@ -26,7 +26,7 @@ impl HttpTranscriptionProvider {
             api_key,
             client: Client::builder()
                 .timeout(TRANSCRIPTION_TIMEOUT)
-                .user_agent("Dictum/1.0 (https://github.com/dictum-app/dictum)")
+                .user_agent("Dictum/1.0 (https://github.com/Vkandil/dictum)")
                 .build()
                 .expect("HTTP client"),
         }

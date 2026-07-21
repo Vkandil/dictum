@@ -95,7 +95,7 @@ Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Se
 ## Download and install
 
 1. Open the repository's **Releases** page.
-2. Download the latest signed Windows installer:
+2. Download the latest Windows installer:
    - `Dictum_*_x64-setup.exe` is the recommended per-user installer.
    - `Dictum_*_x64_en-US.msi` is available for managed Windows deployment.
 3. Verify the release checksum if one is provided.
@@ -349,7 +349,7 @@ cargo --version
 ### Clone and run
 
 ```powershell
-git clone https://github.com/dictum-app/dictum.git
+git clone https://github.com/Vkandil/dictum.git
 Set-Location dictum
 npm ci
 npm run desktop:dev
@@ -372,7 +372,7 @@ src-tauri\target\release\bundle\nsis\
 src-tauri\target\release\bundle\msi\
 ```
 
-Local packages are not Authenticode-signed unless a certificate is supplied. Public GitHub releases must use the signed release workflow described in [docs/releasing.md](docs/releasing.md).
+Windows installers are Authenticode-signed only when a code-signing certificate is configured for the release workflow; otherwise they ship unsigned and Windows SmartScreen may warn on first run. Automatic updates are always cryptographically signed. See [docs/releasing.md](docs/releasing.md).
 
 ## CLI
 
@@ -501,7 +501,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.0.0 and the codebase is configured for a final Windows release. Before publishing a GitHub tag, the maintainer must configure the Windows Authenticode and Tauri updater secrets and complete [the Windows release checklist](docs/windows-release-checklist.md).
+Dictum is version 1.0.0 and the codebase is configured for a final Windows release. Before publishing a GitHub tag, the maintainer must configure the Tauri updater secrets (Windows Authenticode signing is optional) and complete [the Windows release checklist](docs/windows-release-checklist.md).
 
 ## License and acknowledgements
 

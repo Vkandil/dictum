@@ -18,13 +18,18 @@ struct Envelope {
     ciphertext: String,
 }
 
-pub async fn push(store: &Store, settings: &SyncSettings, passphrase: &str) -> Result<()> {
+pub async fn push(
+    store: &Store,
+    settings: &SyncSettings,
+    passphrase: &str,
+    auth_password: Option<&str>,
+) -> Result<()> {
     validate(settings, passphrase)?;
     let body = encrypt(&store.export_sync()?, passphrase)?;
     let response = authorize(
         reqwest::Client::new().put(&settings.endpoint),
         settings,
-        passphrase,
+        auth_password,
     )
     .header("Content-Type", "application/vnd.dictum.encrypted+json")
     .body(body)
@@ -38,12 +43,17 @@ pub async fn push(store: &Store, settings: &SyncSettings, passphrase: &str) -> R
     Ok(())
 }
 
-pub async fn pull(store: &Store, settings: &SyncSettings, passphrase: &str) -> Result<()> {
+pub async fn pull(
+    store: &Store,
+    settings: &SyncSettings,
+    passphrase: &str,
+    auth_password: Option<&str>,
+) -> Result<()> {
     validate(settings, passphrase)?;
     let response = authorize(
         reqwest::Client::new().get(&settings.endpoint),
         settings,
-        passphrase,
+        auth_password,
     )
     .send()
     .await?;
@@ -59,12 +69,15 @@ pub async fn pull(store: &Store, settings: &SyncSettings, passphrase: &str) -> R
 fn authorize(
     request: reqwest::RequestBuilder,
     settings: &SyncSettings,
-    password: &str,
+    auth_password: Option<&str>,
 ) -> reqwest::RequestBuilder {
     if settings.username.is_empty() {
         request
     } else {
-        request.basic_auth(&settings.username, Some(password))
+        // The encryption passphrase never leaves the device: server login uses a
+        // separate, optional credential so a compromised endpoint cannot derive
+        // the key that decrypts the payload.
+        request.basic_auth(&settings.username, auth_password)
     }
 }
 

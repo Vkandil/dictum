@@ -81,8 +81,8 @@ export async function saveProvider(manifest: ProviderManifest): Promise<void> {
   if (isTauri()) await invoke("save_provider", { manifest });
 }
 
-export async function runSync(direction: "push" | "pull", password: string): Promise<void> {
-  if (isTauri()) await invoke("run_sync", { direction, password });
+export async function runSync(direction: "push" | "pull", password: string, authPassword?: string): Promise<void> {
+  if (isTauri()) await invoke("run_sync", { direction, password, authPassword: authPassword || null });
 }
 
 export async function openPermissions(kind: "microphone"): Promise<void> {

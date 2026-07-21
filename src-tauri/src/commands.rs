@@ -714,11 +714,13 @@ pub async fn run_sync(
     state: State<'_, AppState>,
     direction: String,
     password: String,
+    auth_password: Option<String>,
 ) -> Result<(), String> {
     let settings = state.store.settings().map_err(display)?.sync;
+    let auth = auth_password.as_deref().filter(|value| !value.is_empty());
     let result = match direction.as_str() {
-        "push" => sync::push(&state.store, &settings, &password).await,
-        "pull" => sync::pull(&state.store, &settings, &password).await,
+        "push" => sync::push(&state.store, &settings, &password, auth).await,
+        "pull" => sync::pull(&state.store, &settings, &password, auth).await,
         _ => Err(anyhow::anyhow!("invalid sync direction")),
     };
     result.map_err(display)

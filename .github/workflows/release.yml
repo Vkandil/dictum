@@ -19,13 +19,18 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
-      - name: Import Windows signing certificate
+      - name: Configure Windows code signing (optional)
+        id: signing
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          if (-not $env:WINDOWS_CERTIFICATE) { throw 'WINDOWS_CERTIFICATE is not configured' }
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Host 'No WINDOWS_CERTIFICATE secret set; producing unsigned installers.'
+            'config_args=' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
           $certificatePath = Join-Path $env:RUNNER_TEMP 'dictum-certificate.pfx'
           [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
           $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
@@ -33,6 +38,7 @@ jobs:
           if (-not $certificate) { throw 'Windows code-signing certificate import failed' }
           $config = @{ bundle = @{ windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } | ConvertTo-Json -Depth 4
           Set-Content -Path src-tauri/tauri.windows-signing.conf.json -Value $config
+          'config_args=--config src-tauri/tauri.windows-signing.conf.json' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,10 +47,10 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Dictum v__VERSION__ for Windows
-          releaseBody: Download the signed NSIS installer or MSI package below.
+          releaseBody: Download the NSIS installer or MSI package below.
           releaseDraft: true
           prerelease: false
-          args: --config src-tauri/tauri.windows-signing.conf.json --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          args: --config '{"bundle":{"createUpdaterArtifacts":true}}' ${{ steps.signing.outputs.config_args }}
       - name: Publish SHA-256 checksums
         shell: pwsh
         env:

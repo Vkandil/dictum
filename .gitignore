@@ -11,3 +11,4 @@ coverage/
 src-tauri/gen/
 *.pdb
 .secrets/
+.tmp/
