@@ -19,6 +19,7 @@ export const defaultSettings: AppSettings = {
     fastInsert: false,
   },
   whisperMode: false,
+  snippetsVerbatim: true,
   history: { enabled: true, retentionDays: 30, storeAudio: false },
   autostart: false,
   zeroRetention: true,

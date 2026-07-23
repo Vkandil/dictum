@@ -64,6 +64,7 @@ pub struct AppSettings {
     pub injection: String,
     pub formatting: FormattingSettings,
     pub whisper_mode: bool,
+    pub snippets_verbatim: bool,
     pub history: HistorySettings,
     pub autostart: bool,
     pub zero_retention: bool,
@@ -96,6 +97,7 @@ impl Default for AppSettings {
                 fast_insert: false,
             },
             whisper_mode: false,
+            snippets_verbatim: true,
             history: HistorySettings {
                 enabled: true,
                 retention_days: 30,

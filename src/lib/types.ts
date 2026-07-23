@@ -24,6 +24,7 @@ export interface AppSettings {
   injection: InjectionMode;
   formatting: FormattingSettings;
   whisperMode: boolean;
+  snippetsVerbatim: boolean;
   history: { enabled: boolean; retentionDays: number; storeAudio: false };
   autostart: boolean;
   zeroRetention: boolean;

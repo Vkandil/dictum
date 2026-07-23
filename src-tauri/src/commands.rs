@@ -462,7 +462,10 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         .into_iter()
         .map(|s| (s.trigger, s.expansion))
         .collect();
-    let expanded = format::expand_snippets(&raw, &snippets);
+    let (expanded, snippet_fired) = format::expand_snippets(&raw, &snippets);
+    // When a snippet fires and verbatim insertion is enabled, insert the expansion exactly as
+    // configured — skip AI formatting so it can't reword an email, signature, or code block.
+    let skip_formatting = snippet_fired && settings.snippets_verbatim;
     let target = state
         .target_app
         .lock()
@@ -523,7 +526,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             FormatProvider { manifest: &manifest, api_key: api_key.as_deref(), zero_retention: settings.zero_retention },
             intent,
         ) => result? }
-    } else if settings.formatting.enabled {
+    } else if settings.formatting.enabled && !skip_formatting {
         if settings.formatting.fast_insert {
             inject::inject(&expanded, &settings.injection)?;
             fast_inserted = Some(expanded.clone());
