@@ -47,9 +47,10 @@ pub fn run() {
         .setup(|app| {
             let store = Store::new()?;
             let settings = store.settings()?;
-            store.purge_history(settings.history.retention_days)?;
+            // Non-critical: never let history maintenance or tray setup abort startup.
+            let _ = store.purge_history(settings.history.retention_days);
             app.manage(AppState::new(store));
-            setup_tray(app)?;
+            let _ = setup_tray(app);
             let _ = hotkey::register(app.handle(), &settings);
             #[cfg(not(debug_assertions))]
             {

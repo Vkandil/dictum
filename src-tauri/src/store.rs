@@ -51,7 +51,7 @@ pub struct SyncSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub onboarding_complete: bool,
     pub provider: String,

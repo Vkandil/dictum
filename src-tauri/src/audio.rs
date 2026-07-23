@@ -57,6 +57,24 @@ pub struct AudioRecorder {
 
 impl AudioRecorder {
     pub fn devices() -> Result<Vec<AudioDevice>> {
+        // Enumerating input devices goes through WASAPI on Windows and can block for a long
+        // time — or indefinitely — when an audio driver or endpoint is in a bad state (a
+        // disconnected Bluetooth mic, a stalled virtual device, a driver update mid-session).
+        // Because this runs during startup `bootstrap`, a wedged driver would otherwise freeze
+        // the whole app on the loading screen. Time-box it: if enumeration doesn't finish
+        // quickly, fall back to an empty list (callers use the default microphone) so the app
+        // always starts. The Settings screen can re-query once the device settles.
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(Self::enumerate_devices());
+        });
+        match rx.recv_timeout(Duration::from_secs(4)) {
+            Ok(result) => result,
+            Err(_) => Ok(Vec::new()),
+        }
+    }
+
+    fn enumerate_devices() -> Result<Vec<AudioDevice>> {
         let host = cpal::default_host();
         let default_name = host.default_input_device().and_then(|d| d.name().ok());
         let mut devices = Vec::new();
