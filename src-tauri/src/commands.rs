@@ -28,6 +28,7 @@ pub struct AppState {
     pub last_inserted: Mutex<Option<String>>,
     pub last_shortcut: Mutex<Option<Instant>>,
     pub realtime_final: Mutex<Option<String>>,
+    pub realtime_done: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
     pub operation: Mutex<CancellationToken>,
 }
 
@@ -43,6 +44,7 @@ impl AppState {
             last_inserted: Mutex::new(None),
             last_shortcut: Mutex::new(None),
             realtime_final: Mutex::new(None),
+            realtime_done: Mutex::new(None),
             operation: Mutex::new(CancellationToken::new()),
         }
     }
@@ -244,8 +246,11 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
     *state.target_app.lock().unwrap() = Some(focus::current());
     state.command_mode.store(command_mode, Ordering::SeqCst);
     *state.realtime_final.lock().unwrap() = None;
+    *state.realtime_done.lock().unwrap() = None;
     let live_tx = if settings.realtime.enabled {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+        *state.realtime_done.lock().unwrap() = Some(done_rx);
         let provider = settings.realtime.provider.clone();
         let endpoint = if provider == "local" {
             settings.local_endpoint.clone()
@@ -256,7 +261,7 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
         let model = settings.realtime.model.clone();
         let realtime_app = app.clone();
         tauri::async_runtime::spawn(async move {
-            run_realtime(realtime_app, provider, endpoint, model, key, rx).await;
+            run_realtime(realtime_app, provider, endpoint, model, key, rx, done_tx).await;
         });
         Some(tx)
     } else {
@@ -376,7 +381,13 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         zero_retention: settings.zero_retention,
     };
     if settings.realtime.enabled {
-        tokio::time::sleep(Duration::from_millis(450)).await;
+        // Wait for the realtime session to signal it's done (final transcript, error, or
+        // exhausted reconnects) rather than a fixed guess. Bounded so a hung connection
+        // can't stall the dictation indefinitely - it just falls back to batch transcription.
+        let done_rx = state.realtime_done.lock().unwrap().take();
+        if let Some(done_rx) = done_rx {
+            let _ = tokio::time::timeout(Duration::from_secs(4), done_rx).await;
+        }
     }
     let realtime_text = state.realtime_final.lock().unwrap().take();
     let mut raw_parts = Vec::new();
@@ -394,59 +405,69 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     } else {
         &[]
     };
-    let chunk_count = chunks.len();
-    for (chunk_index, chunk) in chunks.iter().enumerate() {
-        let part_error = format!(
-            "transcription part {} of {chunk_count} failed",
-            chunk_index + 1
-        );
-        if chunk_count > 1 {
-            let progress = format!("Transcribing part {} of {chunk_count}", chunk_index + 1);
-            emit(
-                app,
-                DictationEvent {
-                    phase: "transcribing",
-                    level: None,
-                    message: Some(&progress),
-                    text: None,
-                    error_code: None,
-                },
-            );
-        }
-        let primary = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = provider.transcribe(chunk, &options) => result };
-        let (transcript, billed_model, billed_provider) = match primary {
-            Ok(value) => (value, settings.model.clone(), settings.provider.clone()),
-            Err(primary_error) => {
-                if let Some(fallback_id) = &settings.fallback_provider {
-                    let fallback_manifest = state.store.provider(fallback_id)?;
-                    let fallback_key = keychain::get(fallback_id)?;
-                    if fallback_manifest.requires_api_key && fallback_key.is_none() {
-                        return Err(anyhow::Error::new(primary_error).context(part_error));
+    // Transcribe every part concurrently instead of awaiting them one at a time - a long
+    // dictation with several parts no longer takes N times as long as a single request.
+    // The "part X of Y" progress wording is intentionally gone: the caller already shows
+    // "Turning speech into text" once, and the user shouldn't need to know internally that
+    // their recording was split at all.
+    let outcomes = futures_util::future::join_all(chunks.iter().map(|chunk| {
+        let options = &options;
+        let cancellation = &cancellation;
+        let provider = provider.as_ref();
+        let state = &state;
+        let settings = &settings;
+        async move {
+            let primary = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = provider.transcribe(chunk, options) => result };
+            match primary {
+                Ok(value) => Ok((value, settings.model.clone(), settings.provider.clone())),
+                Err(primary_error) => {
+                    if let Some(fallback_id) = &settings.fallback_provider {
+                        let fallback_manifest = state.store.provider(fallback_id)?;
+                        let fallback_key = keychain::get(fallback_id)?;
+                        if fallback_manifest.requires_api_key && fallback_key.is_none() {
+                            return Err(anyhow::Error::new(primary_error)
+                                .context("transcription part failed"));
+                        }
+                        let fallback_model = fallback_manifest
+                            .models
+                            .iter()
+                            .find(|model| *model == &settings.model)
+                            .or_else(|| fallback_manifest.models.first())
+                            .context("fallback provider has no model")?
+                            .clone();
+                        let fallback = create_provider(
+                            fallback_manifest,
+                            fallback_key,
+                            Some(&settings.local_endpoint),
+                        );
+                        let mut fallback_options = options.clone();
+                        fallback_options.model = fallback_model.clone();
+                        let transcript = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = fallback.transcribe(chunk, &fallback_options) => result };
+                        let transcript = transcript.map_err(|_| {
+                            anyhow::Error::new(primary_error)
+                                .context("transcription part failed")
+                        })?;
+                        emit(
+                            app,
+                            DictationEvent {
+                                phase: "transcribing",
+                                level: None,
+                                message: Some("Switched to your backup provider"),
+                                text: None,
+                                error_code: None,
+                            },
+                        );
+                        Ok((transcript, fallback_model, fallback_id.clone()))
+                    } else {
+                        Err(anyhow::Error::new(primary_error).context("transcription part failed"))
                     }
-                    let fallback_model = fallback_manifest
-                        .models
-                        .iter()
-                        .find(|model| *model == &settings.model)
-                        .or_else(|| fallback_manifest.models.first())
-                        .context("fallback provider has no model")?
-                        .clone();
-                    let fallback = create_provider(
-                        fallback_manifest,
-                        fallback_key,
-                        Some(&settings.local_endpoint),
-                    );
-                    let mut fallback_options = options.clone();
-                    fallback_options.model = fallback_model.clone();
-                    let transcript = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = fallback.transcribe(chunk, &fallback_options) => result };
-                    let transcript = transcript.map_err(|_| {
-                        anyhow::Error::new(primary_error).context(part_error.clone())
-                    })?;
-                    (transcript, fallback_model, fallback_id.clone())
-                } else {
-                    return Err(anyhow::Error::new(primary_error).context(part_error));
                 }
             }
-        };
+        }
+    }))
+    .await;
+    for (chunk, outcome) in chunks.iter().zip(outcomes) {
+        let (transcript, billed_model, billed_provider) = outcome?;
         raw_parts.push(transcript.text);
         history_model = billed_model.clone();
         cost += transcript.cost_usd.unwrap_or(estimated_cost(
@@ -588,6 +609,14 @@ fn combine_transcript_parts(parts: &[String]) -> String {
         .join(" ")
 }
 
+const REALTIME_MAX_ATTEMPTS: u8 = 3;
+
+/// Streams microphone audio to a realtime transcription session and relays partial/final
+/// text back to the UI. Unlike the original version, failures are never silent: a failed
+/// or dropped connection surfaces a short notice (via the "listening" phase's `message`)
+/// instead of quietly falling back to batch transcription with no explanation. A mid-stream
+/// drop is retried a bounded number of times, carrying the transcript accumulated so far
+/// forward as a prefix so a reconnect doesn't lose what was already recognized.
 async fn run_realtime(
     app: AppHandle,
     provider: String,
@@ -595,27 +624,89 @@ async fn run_realtime(
     model: String,
     key: Option<String>,
     mut audio_rx: tokio::sync::mpsc::Receiver<Vec<i16>>,
+    done: tokio::sync::oneshot::Sender<()>,
 ) {
     use crate::transcribe::realtime::{RealtimeDialect, RealtimeEvent, RealtimeSession};
-    let Ok(session) = RealtimeSession::connect(
-        &endpoint,
-        &model,
-        key.as_deref(),
-        RealtimeDialect::for_provider(&provider),
-    )
-    .await
-    else {
-        return;
-    };
-    let tx = session.sender();
-    let mut events = session.events;
+    let dialect = RealtimeDialect::for_provider(&provider);
+    let mut transcript = String::new();
     let mut finished = false;
+    let mut attempt = 0u8;
     loop {
-        tokio::select! {
-            audio = audio_rx.recv(), if !finished => match audio { Some(samples) => { let _ = tx.send(samples).await; }, None => { let _ = tx.send(Vec::new()).await; finished = true; } },
-            event = events.recv() => match event { Some(RealtimeEvent::Partial(text)) => emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&text), error_code: None }), Some(RealtimeEvent::Final(text)) => { *app.state::<AppState>().realtime_final.lock().unwrap() = Some(text); break; }, Some(RealtimeEvent::Error(_)) | None => break }
+        let session =
+            match RealtimeSession::connect(&endpoint, &model, key.as_deref(), dialect).await {
+                Ok(session) => session,
+                Err(_) => {
+                    let notice = if attempt == 0 {
+                        "Realtime unavailable — recording normally"
+                    } else {
+                        "Realtime connection lost — recording normally"
+                    };
+                    emit(
+                        &app,
+                        DictationEvent {
+                            phase: "listening",
+                            level: None,
+                            message: Some(notice),
+                            text: None,
+                            error_code: None,
+                        },
+                    );
+                    break;
+                }
+            };
+        attempt += 1;
+        let tx = session.sender();
+        let mut events = session.events;
+        let prefix = transcript.clone();
+        loop {
+            tokio::select! {
+                audio = audio_rx.recv(), if !finished => match audio {
+                    Some(samples) => { let _ = tx.send(samples).await; }
+                    None => { let _ = tx.send(Vec::new()).await; finished = true; }
+                },
+                event = events.recv() => match event {
+                    Some(RealtimeEvent::Partial(text)) => {
+                        transcript = format!("{prefix}{text}");
+                        emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&transcript), error_code: None });
+                    }
+                    Some(RealtimeEvent::Final(text)) => {
+                        transcript = format!("{prefix}{text}");
+                        *app.state::<AppState>().realtime_final.lock().unwrap() = Some(transcript);
+                        let _ = done.send(());
+                        return;
+                    }
+                    Some(RealtimeEvent::Error(_)) | None => break,
+                }
+            }
         }
+        if finished || attempt >= REALTIME_MAX_ATTEMPTS {
+            if !finished {
+                emit(
+                    &app,
+                    DictationEvent {
+                        phase: "listening",
+                        level: None,
+                        message: Some("Realtime connection lost — recording normally"),
+                        text: None,
+                        error_code: None,
+                    },
+                );
+            }
+            break;
+        }
+        emit(
+            &app,
+            DictationEvent {
+                phase: "listening",
+                level: None,
+                message: Some("Realtime connection lost — reconnecting…"),
+                text: None,
+                error_code: None,
+            },
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
     }
+    let _ = done.send(());
 }
 
 fn estimated_cost(audio_ms: u64, model: &str, provider: &str) -> f64 {
