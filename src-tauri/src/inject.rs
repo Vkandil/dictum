@@ -45,6 +45,15 @@ pub fn copy(text: &str) -> Result<()> {
         .context("could not write to clipboard")
 }
 
+// How long to wait before restoring the user's previous clipboard content. Many apps
+// (Electron/Chromium-based editors especially - Slack, Notion, Discord, Teams) don't read
+// the clipboard synchronously off the native paste event; they re-read it asynchronously,
+// sometimes 100ms+ later. Restoring on a short fixed timer raced that read: if it fired
+// after we'd already put the old content back, the app pasted the old text instead of (or
+// mixed with) the dictated text. Restoring well after the fact, off the critical path,
+// gives virtually any app time to finish before we touch the clipboard again.
+const RESTORE_DELAY: Duration = Duration::from_millis(2000);
+
 fn paste(text: &str) -> Result<()> {
     let mut clipboard = Clipboard::new().context("could not open clipboard")?;
     let saved = if let Ok(value) = clipboard.get_text() {
@@ -68,20 +77,25 @@ fn paste(text: &str) -> Result<()> {
     enigo.key(modifier, Direction::Press)?;
     enigo.key(Key::Unicode('v'), Direction::Click)?;
     enigo.key(modifier, Direction::Release)?;
-    thread::sleep(Duration::from_millis(90));
-    match saved {
-        SavedClipboard::Text(value) => clipboard.set_text(value)?,
-        SavedClipboard::Image {
-            width,
-            height,
-            bytes,
-        } => clipboard.set_image(ImageData {
-            width,
-            height,
-            bytes: Cow::Owned(bytes),
-        })?,
-        SavedClipboard::Empty => {}
-    }
+    thread::spawn(move || {
+        thread::sleep(RESTORE_DELAY);
+        let Ok(mut clipboard) = Clipboard::new() else {
+            return;
+        };
+        let _ = match saved {
+            SavedClipboard::Text(value) => clipboard.set_text(value),
+            SavedClipboard::Image {
+                width,
+                height,
+                bytes,
+            } => clipboard.set_image(ImageData {
+                width,
+                height,
+                bytes: Cow::Owned(bytes),
+            }),
+            SavedClipboard::Empty => Ok(()),
+        };
+    });
     Ok(())
 }
 
