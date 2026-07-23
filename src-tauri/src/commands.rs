@@ -787,17 +787,98 @@ fn normalize_word(word: &str) -> String {
     word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
         .to_string()
 }
+#[derive(PartialEq)]
+enum DiffOp {
+    Match,
+    Delete,
+    Insert,
+}
+
+/// Word-level diff via LCS backtracking. Unlike a positional (index-by-index) comparison,
+/// this stays aligned when the user's correction adds or removes words instead of only
+/// swapping one word for another, so a diff op reflects a real edit rather than a shift.
+fn diff_ops(old: &[String], new: &[String]) -> Vec<DiffOp> {
+    let (n, m) = (old.len(), new.len());
+    let mut table = vec![vec![0u32; m + 1]; n + 1];
+    for i in 1..=n {
+        for j in 1..=m {
+            table[i][j] = if old[i - 1] == new[j - 1] {
+                table[i - 1][j - 1] + 1
+            } else {
+                table[i - 1][j].max(table[i][j - 1])
+            };
+        }
+    }
+    let (mut i, mut j) = (n, m);
+    let mut ops = Vec::new();
+    while i > 0 && j > 0 {
+        if old[i - 1] == new[j - 1] {
+            ops.push(DiffOp::Match);
+            i -= 1;
+            j -= 1;
+        } else if table[i - 1][j] >= table[i][j - 1] {
+            ops.push(DiffOp::Delete);
+            i -= 1;
+        } else {
+            ops.push(DiffOp::Insert);
+            j -= 1;
+        }
+    }
+    for _ in 0..i {
+        ops.push(DiffOp::Delete);
+    }
+    for _ in 0..j {
+        ops.push(DiffOp::Insert);
+    }
+    ops.reverse();
+    ops
+}
+
+/// Only words inserted where something was also removed count as a learned correction
+/// (a misheard word replaced by the right one). Words merely added or removed, with nothing
+/// on the other side, are ordinary edits and are not vocabulary corrections.
+fn flush_hunk(
+    had_removal: bool,
+    additions: &mut Vec<String>,
+    old: &[String],
+    learned: &mut Vec<String>,
+) {
+    if had_removal {
+        for word in additions.drain(..) {
+            if word.len() > 1 && !old.contains(&word) && !learned.contains(&word) {
+                learned.push(word);
+            }
+        }
+    } else {
+        additions.clear();
+    }
+}
+
 fn correction_terms(original: &str, corrected: &str) -> Vec<String> {
-    let old: Vec<_> = original.split_whitespace().map(normalize_word).collect();
-    corrected
-        .split_whitespace()
-        .map(normalize_word)
-        .enumerate()
-        .filter_map(|(index, word)| {
-            (word.len() > 1 && old.get(index) != Some(&word) && !old.contains(&word))
-                .then_some(word)
-        })
-        .collect()
+    let old: Vec<String> = original.split_whitespace().map(normalize_word).collect();
+    let new: Vec<String> = corrected.split_whitespace().map(normalize_word).collect();
+    let ops = diff_ops(&old, &new);
+
+    let mut learned = Vec::new();
+    let mut new_index = 0usize;
+    let mut had_removal = false;
+    let mut additions: Vec<String> = Vec::new();
+    for op in &ops {
+        match op {
+            DiffOp::Match => {
+                flush_hunk(had_removal, &mut additions, &old, &mut learned);
+                had_removal = false;
+                new_index += 1;
+            }
+            DiffOp::Delete => had_removal = true,
+            DiffOp::Insert => {
+                additions.push(new[new_index].clone());
+                new_index += 1;
+            }
+        }
+    }
+    flush_hunk(had_removal, &mut additions, &old, &mut learned);
+    learned
 }
 
 #[cfg(test)]
@@ -819,6 +900,24 @@ mod tests {
         assert_eq!(
             correction_terms("Meet Victor at noon", "Meet Viktor at noon"),
             vec!["Viktor"]
+        );
+    }
+
+    #[test]
+    fn inserting_a_word_does_not_learn_it_as_a_correction() {
+        // Adding "really" shifts every later word by one position; a naive index-based
+        // comparison would misread that shift as a vocabulary correction.
+        assert_eq!(
+            correction_terms("I love Victor", "I really love Viktor"),
+            vec!["Viktor"]
+        );
+    }
+
+    #[test]
+    fn removing_a_word_learns_nothing() {
+        assert_eq!(
+            correction_terms("Hello there friend", "Hello friend"),
+            Vec::<String>::new()
         );
     }
 

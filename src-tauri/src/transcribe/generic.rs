@@ -168,6 +168,9 @@ fn openrouter_body(audio: &AudioChunk, opts: &TranscribeOpts) -> serde_json::Val
     if let Some(language) = &opts.language {
         body["language"] = json!(language);
     }
+    if !opts.biasing.is_empty() {
+        body["prompt"] = json!(opts.biasing.join(", "));
+    }
     if opts.zero_retention {
         body["provider"] = json!({"zdr":true,"data_collection":"deny"});
     }
@@ -278,6 +281,7 @@ mod tests {
         assert_eq!(body["input_audio"]["data"], STANDARD.encode(b"RIFF-test"));
         assert_eq!(body["provider"]["zdr"], true);
         assert_eq!(body["provider"]["data_collection"], "deny");
+        assert_eq!(body["prompt"], "Dictum");
     }
 
     #[test]
