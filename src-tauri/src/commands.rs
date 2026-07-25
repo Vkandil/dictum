@@ -29,6 +29,7 @@ pub struct AppState {
     pub last_shortcut: Mutex<Option<Instant>>,
     pub realtime_final: Mutex<Option<String>>,
     pub realtime_done: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
+    pub realtime_live: Mutex<Option<String>>,
     pub operation: Mutex<CancellationToken>,
 }
 
@@ -45,6 +46,7 @@ impl AppState {
             last_shortcut: Mutex::new(None),
             realtime_final: Mutex::new(None),
             realtime_done: Mutex::new(None),
+            realtime_live: Mutex::new(None),
             operation: Mutex::new(CancellationToken::new()),
         }
     }
@@ -247,6 +249,7 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
     state.command_mode.store(command_mode, Ordering::SeqCst);
     *state.realtime_final.lock().unwrap() = None;
     *state.realtime_done.lock().unwrap() = None;
+    *state.realtime_live.lock().unwrap() = None;
     let live_tx = if settings.realtime.enabled {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
@@ -573,6 +576,11 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     }
     if let Some(previous) = replace_previous {
         inject::replace_previous(&final_text, &previous, &settings.injection)?;
+    } else if let Some(live) = state.realtime_live.lock().unwrap().take() {
+        // Realtime already typed the recognized text live at the cursor as it arrived;
+        // reconcile with only the difference (e.g. AI formatting's polish) instead of
+        // inserting a second copy on top of it.
+        inject::live_update(&live, &final_text)?;
     } else {
         inject::inject(&final_text, &settings.injection)?;
     }
@@ -671,11 +679,29 @@ async fn run_realtime(
                 event = events.recv() => match event {
                     Some(RealtimeEvent::Partial(text)) => {
                         transcript = format!("{prefix}{text}");
-                        emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&transcript), error_code: None });
+                        // Type the live transcript directly at the cursor instead of only
+                        // showing it in the HUD - skipped in command mode, where the spoken
+                        // words are an instruction, not literal text to insert.
+                        let state = app.state::<AppState>();
+                        if !state.command_mode.load(Ordering::SeqCst) {
+                            let mut live = state.realtime_live.lock().unwrap();
+                            let previous = live.clone().unwrap_or_default();
+                            *live = Some(transcript.clone());
+                            drop(live);
+                            let _ = inject::live_update(&previous, &transcript);
+                        }
                     }
                     Some(RealtimeEvent::Final(text)) => {
                         transcript = format!("{prefix}{text}");
-                        *app.state::<AppState>().realtime_final.lock().unwrap() = Some(transcript);
+                        let state = app.state::<AppState>();
+                        if !state.command_mode.load(Ordering::SeqCst) {
+                            let mut live = state.realtime_live.lock().unwrap();
+                            let previous = live.clone().unwrap_or_default();
+                            *live = Some(transcript.clone());
+                            drop(live);
+                            let _ = inject::live_update(&previous, &transcript);
+                        }
+                        *state.realtime_final.lock().unwrap() = Some(transcript);
                         let _ = done.send(());
                         return;
                     }
@@ -750,6 +776,11 @@ pub fn cancel(app: &AppHandle, state: &AppState) {
     state.operation.lock().unwrap().cancel();
     state.busy.store(false, Ordering::SeqCst);
     state.command_mode.store(false, Ordering::SeqCst);
+    if let Some(live) = state.realtime_live.lock().unwrap().take() {
+        // Realtime may have already typed the in-progress transcript at the cursor; cancelling
+        // must mean nothing gets inserted, so remove it rather than leaving it behind.
+        let _ = inject::live_update(&live, "");
+    }
     emit(
         app,
         DictationEvent {

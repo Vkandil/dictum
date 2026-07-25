@@ -66,6 +66,43 @@ pub fn replace_previous(text: &str, previous: &str, mode: &str) -> Result<()> {
     inject(text, mode)
 }
 
+/// Applies only the visible difference between what's currently typed at the cursor and a
+/// new target text, via Backspace-then-type - never the clipboard, never a synthetic
+/// Shift+selection. Used to keep realtime live captions appearing directly in the target
+/// document as they're recognized (instead of only in the HUD) without repeating the
+/// clipboard-paste-over-a-selection dance many times a second - that mechanism is what made
+/// "Fast insert, then refine" occasionally duplicate text, and doing it on every delta would
+/// hit the same risk far more often. Since deltas are almost always pure appends, the common
+/// case costs nothing to delete and just types the new suffix.
+pub fn live_update(previous: &str, next: &str) -> Result<()> {
+    if previous == next {
+        return Ok(());
+    }
+    let prefix_len = common_prefix_len(previous, next);
+    let to_delete = previous[prefix_len..].encode_utf16().count();
+    let mut enigo =
+        Enigo::new(&Settings::default()).context("could not initialize system input")?;
+    for _ in 0..to_delete {
+        let _ = enigo.key(Key::Backspace, Direction::Click);
+    }
+    let suffix = &next[prefix_len..];
+    if !suffix.is_empty() {
+        enigo.text(suffix).context("synthetic typing failed")?;
+    }
+    Ok(())
+}
+
+fn common_prefix_len(a: &str, b: &str) -> usize {
+    let mut len = 0;
+    for (ca, cb) in a.chars().zip(b.chars()) {
+        if ca != cb {
+            break;
+        }
+        len += ca.len_utf8();
+    }
+    len
+}
+
 pub fn copy(text: &str) -> Result<()> {
     Clipboard::new()?
         .set_text(text)
@@ -153,4 +190,30 @@ fn type_text(text: &str) -> Result<()> {
         Enigo::new(&Settings::default()).context("could not initialize system input")?;
     enigo.text(text).context("synthetic typing failed")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn common_prefix_stops_at_first_difference() {
+        assert_eq!(
+            common_prefix_len("hello wor", "hello world"),
+            "hello wor".len()
+        );
+        assert_eq!(
+            common_prefix_len("hello world", "hello word"),
+            "hello wor".len()
+        );
+        assert_eq!(common_prefix_len("", "hello"), 0);
+        assert_eq!(common_prefix_len("hello", "hello"), "hello".len());
+    }
+
+    #[test]
+    fn common_prefix_does_not_split_multibyte_characters() {
+        // "café" / "café2" share "café" (4 chars, 5 bytes since é is 2 bytes in UTF-8).
+        assert_eq!(common_prefix_len("café", "café2"), "café".len());
+        assert_eq!(common_prefix_len("bonjour", "bonjour"), "bonjour".len());
+    }
 }
