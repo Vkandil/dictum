@@ -610,6 +610,18 @@ fn combine_transcript_parts(parts: &[String]) -> String {
 }
 
 const REALTIME_MAX_ATTEMPTS: u8 = 3;
+// The HUD is a small, fixed-size window; keep a server error readable within it instead of
+// letting a long validation-error payload overflow past its bounds.
+const REALTIME_ERROR_PREVIEW_CHARS: usize = 150;
+
+fn truncate_reason(reason: &str) -> String {
+    if reason.chars().count() <= REALTIME_ERROR_PREVIEW_CHARS {
+        reason.to_string()
+    } else {
+        let truncated: String = reason.chars().take(REALTIME_ERROR_PREVIEW_CHARS).collect();
+        format!("{truncated}…")
+    }
+}
 
 /// Streams microphone audio to a realtime transcription session and relays partial/final
 /// text back to the UI. Unlike the original version, failures are never silent: a failed
@@ -684,9 +696,10 @@ async fn run_realtime(
         if finished || attempt >= REALTIME_MAX_ATTEMPTS {
             if !finished {
                 let notice = match &last_error {
-                    Some(reason) => {
-                        format!("Realtime connection lost ({reason}) — recording normally")
-                    }
+                    Some(reason) => format!(
+                        "Realtime connection lost ({}) — recording normally",
+                        truncate_reason(reason)
+                    ),
                     None => "Realtime connection lost — recording normally".to_string(),
                 };
                 emit(
@@ -703,7 +716,10 @@ async fn run_realtime(
             break;
         }
         let notice = match &last_error {
-            Some(reason) => format!("Realtime connection lost ({reason}) — reconnecting…"),
+            Some(reason) => format!(
+                "Realtime connection lost ({}) — reconnecting…",
+                truncate_reason(reason)
+            ),
             None => "Realtime connection lost — reconnecting…".to_string(),
         };
         emit(

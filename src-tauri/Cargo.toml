@@ -1,6 +1,6 @@
 [package]
 name = "dictum"
-version = "1.0.7"
+version = "1.0.8"
 default-run = "dictum"
 description = "Open-source, local-first, system-wide voice dictation for Windows"
 authors = ["Dictum contributors"]

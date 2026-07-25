@@ -1,4 +1,9 @@
-use std::{borrow::Cow, thread, time::Duration};
+use std::{
+    borrow::Cow,
+    sync::{Mutex, OnceLock},
+    thread,
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use arboard::{Clipboard, ImageData};
@@ -12,6 +17,28 @@ enum SavedClipboard {
         bytes: Vec<u8>,
     },
     Empty,
+}
+
+/// "Fast insert, then refine" pastes twice in quick succession: the raw transcript, then the
+/// polished text over it a moment later. Each paste() used to independently save/restore the
+/// clipboard, so the second call captured the *first call's dictated text* as "the clipboard to
+/// restore" instead of the user's real previous clipboard - and whichever restore timer fired
+/// last won, leaving stray dictated text in the clipboard instead of what was there before
+/// either paste ever ran. Track the one true original centrally: only the first paste() in a
+/// burst records it, and only the most recent paste()'s restore timer is allowed to act on it.
+struct PendingRestore {
+    generation: u64,
+    original: Option<SavedClipboard>,
+}
+
+fn pending_restore() -> &'static Mutex<PendingRestore> {
+    static PENDING: OnceLock<Mutex<PendingRestore>> = OnceLock::new();
+    PENDING.get_or_init(|| {
+        Mutex::new(PendingRestore {
+            generation: 0,
+            original: None,
+        })
+    })
 }
 
 pub fn inject(text: &str, mode: &str) -> Result<()> {
@@ -56,7 +83,7 @@ const RESTORE_DELAY: Duration = Duration::from_millis(2000);
 
 fn paste(text: &str) -> Result<()> {
     let mut clipboard = Clipboard::new().context("could not open clipboard")?;
-    let saved = if let Ok(value) = clipboard.get_text() {
+    let current = if let Ok(value) = clipboard.get_text() {
         SavedClipboard::Text(value)
     } else if let Ok(image) = clipboard.get_image() {
         SavedClipboard::Image {
@@ -66,6 +93,14 @@ fn paste(text: &str) -> Result<()> {
         }
     } else {
         SavedClipboard::Empty
+    };
+    let generation = {
+        let mut pending = pending_restore().lock().unwrap();
+        if pending.original.is_none() {
+            pending.original = Some(current);
+        }
+        pending.generation += 1;
+        pending.generation
     };
     clipboard
         .set_text(text)
@@ -84,10 +119,19 @@ fn paste(text: &str) -> Result<()> {
     let _ = enigo.key(modifier, Direction::Release);
     thread::spawn(move || {
         thread::sleep(RESTORE_DELAY);
+        let mut pending = pending_restore().lock().unwrap();
+        if pending.generation != generation {
+            // A later paste() has since taken over; its own timer will do the restore.
+            return;
+        }
+        let Some(original) = pending.original.take() else {
+            return;
+        };
+        drop(pending);
         let Ok(mut clipboard) = Clipboard::new() else {
             return;
         };
-        let _ = match saved {
+        let _ = match original {
             SavedClipboard::Text(value) => clipboard.set_text(value),
             SavedClipboard::Image {
                 width,
