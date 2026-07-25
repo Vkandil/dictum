@@ -658,6 +658,7 @@ async fn run_realtime(
         let tx = session.sender();
         let mut events = session.events;
         let prefix = transcript.clone();
+        let mut last_error: Option<String> = None;
         loop {
             tokio::select! {
                 audio = audio_rx.recv(), if !finished => match audio {
@@ -675,18 +676,25 @@ async fn run_realtime(
                         let _ = done.send(());
                         return;
                     }
-                    Some(RealtimeEvent::Error(_)) | None => break,
+                    Some(RealtimeEvent::Error(reason)) => { last_error = Some(reason); break; }
+                    None => break,
                 }
             }
         }
         if finished || attempt >= REALTIME_MAX_ATTEMPTS {
             if !finished {
+                let notice = match &last_error {
+                    Some(reason) => {
+                        format!("Realtime connection lost ({reason}) — recording normally")
+                    }
+                    None => "Realtime connection lost — recording normally".to_string(),
+                };
                 emit(
                     &app,
                     DictationEvent {
                         phase: "listening",
                         level: None,
-                        message: Some("Realtime connection lost — recording normally"),
+                        message: Some(&notice),
                         text: None,
                         error_code: None,
                     },
@@ -694,12 +702,16 @@ async fn run_realtime(
             }
             break;
         }
+        let notice = match &last_error {
+            Some(reason) => format!("Realtime connection lost ({reason}) — reconnecting…"),
+            None => "Realtime connection lost — reconnecting…".to_string(),
+        };
         emit(
             &app,
             DictationEvent {
                 phase: "listening",
                 level: None,
-                message: Some("Realtime connection lost — reconnecting…"),
+                message: Some(&notice),
                 text: None,
                 error_code: None,
             },
