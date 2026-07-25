@@ -99,6 +99,19 @@ pub fn live_update(previous: &str, next: &str) -> Result<()> {
     Ok(())
 }
 
+/// Types text at the cursor with no clipboard and no Backspace at all - used for live realtime
+/// captions while speech is still arriving. live_update (Backspace-then-type) turned out to be
+/// too fragile to call on every delta: outrunning how fast the target app actually processed
+/// each burst desynced Dictum's idea of what was on screen from reality, and the next diff
+/// would delete/retype at the wrong position - observed as large stray gaps splitting words
+/// apart. A pure append can never do that: there's nothing to miscount, so partial deltas
+/// arriving faster than the app can keep up with just queue up correctly instead of corrupting
+/// anything. The one-time Backspace-based cleanup in live_update is reserved for the end of the
+/// dictation (formatting's polish, or cancellation), when there's no further competing traffic.
+pub fn type_only(text: &str) -> Result<()> {
+    type_text(text)
+}
+
 fn common_prefix_len(a: &str, b: &str) -> usize {
     let mut len = 0;
     for (ca, cb) in a.chars().zip(b.chars()) {
