@@ -82,6 +82,13 @@ pub fn live_update(previous: &str, next: &str) -> Result<()> {
     let to_delete = previous[prefix_len..].encode_utf16().count();
     let mut enigo =
         Enigo::new(&Settings::default()).context("could not initialize system input")?;
+    // Defensively release modifiers an earlier paste()/replace_previous() call may have left
+    // physically held if its own release keystroke silently failed - Backspace while Control is
+    // still down reads to most editors as "delete the previous word", not one character, which
+    // would explain far more disappearing than a single Backspace should ever cause.
+    let _ = enigo.key(Key::Control, Direction::Release);
+    let _ = enigo.key(Key::Shift, Direction::Release);
+    let _ = enigo.key(Key::Alt, Direction::Release);
     for _ in 0..to_delete {
         let _ = enigo.key(Key::Backspace, Direction::Click);
     }

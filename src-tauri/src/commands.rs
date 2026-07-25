@@ -670,6 +670,13 @@ async fn run_realtime(
         let mut events = session.events;
         let prefix = transcript.clone();
         let mut last_error: Option<String> = None;
+        // Applying a Backspace/type diff to the target document on every single delta - some
+        // arrive well under 100ms apart - can outrun how fast the app actually processes each
+        // burst, desyncing what Dictum thinks is on screen from what's really there. Coalescing
+        // to one visible update per interval gives the app time to catch up between updates;
+        // the terminal event below always applies regardless, so the end state is never stale.
+        const MIN_LIVE_UPDATE_INTERVAL: Duration = Duration::from_millis(200);
+        let mut last_live_update: Option<Instant> = None;
         loop {
             tokio::select! {
                 audio = audio_rx.recv(), if !finished => match audio {
@@ -682,13 +689,16 @@ async fn run_realtime(
                         // Type the live transcript directly at the cursor instead of only
                         // showing it in the HUD - skipped in command mode, where the spoken
                         // words are an instruction, not literal text to insert.
+                        let due = last_live_update
+                            .map_or(true, |t| t.elapsed() >= MIN_LIVE_UPDATE_INTERVAL);
                         let state = app.state::<AppState>();
-                        if !state.command_mode.load(Ordering::SeqCst) {
+                        if due && !state.command_mode.load(Ordering::SeqCst) {
                             let mut live = state.realtime_live.lock().unwrap();
                             let previous = live.clone().unwrap_or_default();
                             *live = Some(transcript.clone());
                             drop(live);
                             let _ = inject::live_update(&previous, &transcript);
+                            last_live_update = Some(Instant::now());
                         }
                     }
                     Some(RealtimeEvent::Final(text)) => {
