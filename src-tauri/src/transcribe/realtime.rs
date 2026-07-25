@@ -72,9 +72,16 @@ impl RealtimeSession {
         ensure_session_created(&first)?;
         let update = match dialect {
             RealtimeDialect::OpenAiCompatible => json!({"type":"session.update","model":model}),
+            // target_streaming_delay_ms paces how often the server emits text deltas: a larger
+            // value trades a little latency for fewer, longer, more accurate chunks. ~480ms is
+            // Mistral's documented sweet spot and keeps the number of live keystroke bursts we
+            // send into the target app low enough to stay clean, instead of dozens per second.
             RealtimeDialect::Mistral => json!({
                 "type": "session.update",
-                "session": {"audio_format": {"encoding": "pcm_s16le", "sample_rate": 16000}},
+                "session": {
+                    "audio_format": {"encoding": "pcm_s16le", "sample_rate": 16000},
+                    "target_streaming_delay_ms": 480,
+                },
             }),
         };
         socket
@@ -393,6 +400,7 @@ mod tests {
             assert_eq!(update["type"], "session.update");
             assert_eq!(update["session"]["audio_format"]["encoding"], "pcm_s16le");
             assert_eq!(update["session"]["audio_format"]["sample_rate"], 16000);
+            assert_eq!(update["session"]["target_streaming_delay_ms"], 480);
             let append = socket.next().await.unwrap().unwrap().into_text().unwrap();
             assert_eq!(
                 serde_json::from_str::<serde_json::Value>(&append).unwrap()["type"],

@@ -480,6 +480,32 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         ));
     }
     let raw = combine_transcript_parts(&raw_parts);
+    let target = state
+        .target_app
+        .lock()
+        .unwrap()
+        .clone()
+        .unwrap_or_else(focus::current);
+    // Realtime already typed the transcript at the cursor as it was spoken. Its raw text is the
+    // finished result: don't re-insert it, and don't run AI formatting - formatting rewrites the
+    // whole thing, which can't be applied word-by-word live and (deleting + retyping everything
+    // at the end) is exactly what corrupted the on-screen text before. AI formatting and voice
+    // snippets are intentionally unavailable in realtime mode; the live raw transcript stands.
+    if state.realtime_live.lock().unwrap().take().is_some() {
+        *state.last_inserted.lock().unwrap() = Some(raw.clone());
+        if settings.history.enabled {
+            state.store.insert_history(
+                &raw,
+                &raw,
+                Some(&target.name),
+                capture.duration_ms as i64,
+                cost,
+                &history_model,
+            )?;
+            state.store.purge_history(settings.history.retention_days)?;
+        }
+        return Ok(raw);
+    }
     let snippets: Vec<_> = state
         .store
         .snippets()?
@@ -490,12 +516,6 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     // When a snippet fires and verbatim insertion is enabled, insert the expansion exactly as
     // configured — skip AI formatting so it can't reword an email, signature, or code block.
     let skip_formatting = snippet_fired && settings.snippets_verbatim;
-    let target = state
-        .target_app
-        .lock()
-        .unwrap()
-        .clone()
-        .unwrap_or_else(focus::current);
     let command_mode = state.command_mode.swap(false, Ordering::SeqCst);
     let mut replace_previous = None;
     let final_text = if command_mode {
@@ -576,11 +596,6 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     }
     if let Some(previous) = replace_previous {
         inject::replace_previous(&final_text, &previous, &settings.injection)?;
-    } else if let Some(live) = state.realtime_live.lock().unwrap().take() {
-        // Realtime already typed the recognized text live at the cursor as it arrived;
-        // reconcile with only the difference (e.g. AI formatting's polish) instead of
-        // inserting a second copy on top of it.
-        inject::live_update(&live, &final_text)?;
     } else {
         inject::inject(&final_text, &settings.injection)?;
     }
@@ -701,13 +716,21 @@ async fn run_realtime(
                     }
                     Some(RealtimeEvent::Final(text)) => {
                         transcript = format!("{prefix}{text}");
+                        // Same append-only rule as partials - never a backspace-based fixup in
+                        // the live path. Since Voxtral's deltas are incremental (monotonic),
+                        // the final text is just the last append, so this types the remaining
+                        // suffix and nothing is ever deleted mid-stream.
                         let state = app.state::<AppState>();
                         if !state.command_mode.load(Ordering::SeqCst) {
                             let mut live = state.realtime_live.lock().unwrap();
                             let previous = live.clone().unwrap_or_default();
-                            *live = Some(transcript.clone());
-                            drop(live);
-                            let _ = inject::live_update(&previous, &transcript);
+                            if let Some(suffix) = transcript.strip_prefix(previous.as_str()) {
+                                if !suffix.is_empty() {
+                                    *live = Some(transcript.clone());
+                                    drop(live);
+                                    let _ = inject::type_only(suffix);
+                                }
+                            }
                         }
                         *state.realtime_final.lock().unwrap() = Some(transcript);
                         let _ = done.send(());
