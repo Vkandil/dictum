@@ -495,7 +495,6 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         .unwrap_or_else(focus::current);
     let command_mode = state.command_mode.swap(false, Ordering::SeqCst);
     let mut replace_previous = None;
-    let mut fast_inserted = None;
     let final_text = if command_mode {
         let assistant = expanded.to_lowercase().starts_with("ask dictum")
             || expanded.to_lowercase().starts_with("answer ");
@@ -548,20 +547,12 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             intent,
         ) => result? }
     } else if settings.formatting.enabled && !skip_formatting {
-        if settings.formatting.fast_insert {
-            inject::inject(&expanded, &settings.injection)?;
-            fast_inserted = Some(expanded.clone());
-        }
         emit(
             app,
             DictationEvent {
                 phase: "formatting",
                 level: None,
-                message: Some(if settings.formatting.fast_insert {
-                    "Refining the inserted transcript"
-                } else {
-                    "Polishing your words"
-                }),
+                message: Some("Polishing your words"),
                 text: None,
                 error_code: None,
             },
@@ -580,7 +571,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     if cancellation.is_cancelled() {
         return Err(TranscribeError::Cancelled.into());
     }
-    if let Some(previous) = replace_previous.or(fast_inserted) {
+    if let Some(previous) = replace_previous {
         inject::replace_previous(&final_text, &previous, &settings.injection)?;
     } else {
         inject::inject(&final_text, &settings.injection)?;

@@ -48,7 +48,6 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
         </div>
         <Toggle checked={settings.formatting.removeFillers} onChange={(removeFillers) => patch("formatting", { ...settings.formatting, removeFillers })} label="Remove fillers" description="Drop hesitation words without changing meaning." disabled={!settings.formatting.enabled} />
         <Toggle checked={settings.formatting.fixGrammar} onChange={(fixGrammar) => patch("formatting", { ...settings.formatting, fixGrammar })} label="Grammar & self-corrections" description="Resolve phrases like “Tuesday—no, Friday” into the intended result." disabled={!settings.formatting.enabled} />
-        <Toggle checked={settings.formatting.fastInsert} onChange={(fastInsert) => patch("formatting", { ...settings.formatting, fastInsert })} label="Fast insert, then refine" description="Paste the raw transcript immediately, then replace it with the polished version." disabled={!settings.formatting.enabled} />
         <Toggle checked={settings.whisperMode} onChange={(value) => patch("whisperMode", value)} label="Whisper mode" description="Boost and normalize very quiet speech." />
         <Toggle checked={settings.snippetsVerbatim} onChange={(value) => patch("snippetsVerbatim", value)} label="Insert snippets verbatim" description="When a voice snippet triggers, insert its expansion exactly and skip AI formatting for that dictation. Turn off to let formatting reword it." />
       </Card>

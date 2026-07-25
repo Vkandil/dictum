@@ -19,12 +19,12 @@ enum SavedClipboard {
     Empty,
 }
 
-/// "Fast insert, then refine" pastes twice in quick succession: the raw transcript, then the
-/// polished text over it a moment later. Each paste() used to independently save/restore the
-/// clipboard, so the second call captured the *first call's dictated text* as "the clipboard to
-/// restore" instead of the user's real previous clipboard - and whichever restore timer fired
-/// last won, leaving stray dictated text in the clipboard instead of what was there before
-/// either paste ever ran. Track the one true original centrally: only the first paste() in a
+/// Two dictations pasted back to back (or a command-mode replace right after a dictation) can
+/// each call paste() within the same restore window. Each call used to independently save/
+/// restore the clipboard, so a later call could capture an *earlier call's dictated text* as
+/// "the clipboard to restore" instead of the user's real previous clipboard - and whichever
+/// restore timer fired last won, leaving stray dictated text behind instead of what was there
+/// before any of them ran. Track the one true original centrally: only the first paste() in a
 /// burst records it, and only the most recent paste()'s restore timer is allowed to act on it.
 struct PendingRestore {
     generation: u64,

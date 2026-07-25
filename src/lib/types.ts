@@ -9,7 +9,6 @@ export interface FormattingSettings {
   removeFillers: boolean;
   fixGrammar: boolean;
   tone: Tone;
-  fastInsert: boolean;
 }
 
 export interface AppSettings {

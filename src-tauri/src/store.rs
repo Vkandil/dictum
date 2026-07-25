@@ -23,7 +23,6 @@ pub struct FormattingSettings {
     pub remove_fillers: bool,
     pub fix_grammar: bool,
     pub tone: String,
-    pub fast_insert: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,7 +93,6 @@ impl Default for AppSettings {
                 remove_fillers: true,
                 fix_grammar: true,
                 tone: "auto".into(),
-                fast_insert: false,
             },
             whisper_mode: false,
             snippets_verbatim: true,

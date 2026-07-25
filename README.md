@@ -69,7 +69,6 @@ Dictum itself has no subscription fee. Hosted providers may charge for inference
 - Optional filler removal, punctuation, and grammar correction
 - Spoken self-correction handling
 - App-aware tone for chat, formal writing, and code editors
-- Fast insertion followed by optional refined replacement
 - Personal dictionary and provider context bias
 - Exact-phrase voice snippets
 - Command mode for “make it concise”, “translate to French”, and similar requests

@@ -16,7 +16,6 @@ export const defaultSettings: AppSettings = {
     removeFillers: true,
     fixGrammar: true,
     tone: "auto",
-    fastInsert: false,
   },
   whisperMode: false,
   snippetsVerbatim: true,
