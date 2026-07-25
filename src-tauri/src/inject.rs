@@ -74,9 +74,14 @@ fn paste(text: &str) -> Result<()> {
     let mut enigo =
         Enigo::new(&Settings::default()).context("could not initialize system input")?;
     let modifier = Key::Control;
-    enigo.key(modifier, Direction::Press)?;
-    enigo.key(Key::Unicode('v'), Direction::Click)?;
-    enigo.key(modifier, Direction::Release)?;
+    // Once we start sending the paste keystroke we're committed: a failure here (e.g.
+    // releasing the modifier key) must NOT make this function return Err. `inject()` treats
+    // any Err from paste() as "nothing was inserted" and retypes the whole text as a
+    // fallback - but if Ctrl+V had already reached the target app, that fallback duplicated
+    // the text instead of recovering from a real failure.
+    let _ = enigo.key(modifier, Direction::Press);
+    let _ = enigo.key(Key::Unicode('v'), Direction::Click);
+    let _ = enigo.key(modifier, Direction::Release);
     thread::spawn(move || {
         thread::sleep(RESTORE_DELAY);
         let Ok(mut clipboard) = Clipboard::new() else {

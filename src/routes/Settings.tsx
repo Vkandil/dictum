@@ -14,19 +14,20 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
   const [keyError, setKeyError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [dirty, setDirty] = useState(false);
   const [syncPassword, setSyncPassword] = useState("");
   const [syncAuthPassword, setSyncAuthPassword] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
   const [plugin, setPlugin] = useState({ id: "", name: "", baseUrl: "", model: "" });
   const [pluginStatus, setPluginStatus] = useState("");
   const provider = useMemo(() => providers.find((item) => item.id === settings.provider), [providers, settings.provider]);
-  const patch = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => setSettings((current) => ({ ...current, [key]: value }));
-  const save = async () => { setSaving(true); setSaveError(""); try { await checkHotkey(settings.hotkey.combo); await saveSettings(settings); await onSaved(); } catch (error) { setSaveError(String(error)); } finally { setSaving(false); } };
+  const patch = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => { setSettings((current) => ({ ...current, [key]: value })); setDirty(true); };
+  const save = async () => { setSaving(true); setSaveError(""); try { await checkHotkey(settings.hotkey.combo); await saveSettings(settings); setDirty(false); await onSaved(); } catch (error) { setSaveError(String(error)); } finally { setSaving(false); } };
   const checkKey = async () => { setKeyState("checking"); setKeyError(""); try { await validateApiKey(settings.provider, key || undefined); if (key) await saveApiKey(settings.provider, key); setKey(""); setKeyState("valid"); } catch (error) { setKeyError(String(error)); setKeyState("error"); } };
   const syncNow = async (direction: "push" | "pull") => { setSyncStatus("Syncing…"); try { await runSync(direction, syncPassword, syncAuthPassword); setSyncStatus(direction === "push" ? "Encrypted data uploaded." : "Encrypted data restored."); if (direction === "pull") await onSaved(); } catch (error) { setSyncStatus(String(error)); } };
   const addPlugin = async () => { setPluginStatus(""); try { await saveProvider({ id: plugin.id, name: plugin.name, baseUrl: plugin.baseUrl, transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions", models: [plugin.model], supportsRealtime: false, requiresApiKey: true }); setPlugin({ id: "", name: "", baseUrl: "", model: "" }); setPluginStatus("Provider added."); await onSaved(); } catch (error) { setPluginStatus(String(error)); } };
   return <div className="page">
-    <header className="page-header compact"><div><p className="eyebrow">Make it yours</p><h1>Settings</h1><p>Changes stay on this device. API keys live only in your OS keychain.</p></div><div>{saveError ? <p className="field-error settings-error">{saveError}</p> : null}<Button busy={saving} onClick={() => void save()}><Save size={16} />Save changes</Button></div></header>
+    <header className="page-header compact"><div><p className="eyebrow">Make it yours</p><h1>Settings</h1><p>Changes stay on this device. API keys live only in your OS keychain.</p></div><div>{saveError ? <p className="field-error settings-error">{saveError}</p> : null}<Button variant={dirty ? "primary" : "secondary"} busy={saving} disabled={!dirty && !saving} onClick={() => void save()}>{dirty ? <><Save size={16} />Save changes</> : <><CheckCircle2 size={16} />Saved</>}</Button></div></header>
     <div className="settings-stack">
       <Card><div className="setting-heading"><CloudCog /><div><h2>Transcription</h2><p>Choose where speech is processed.</p></div></div><div className="form-grid">
         <Field label="Provider"><Select value={settings.provider} onChange={(e) => { const next = providers.find((p) => p.id === e.target.value); setSettings((s) => ({ ...s, provider: e.target.value, model: next?.models[0] || s.model })); }}>{providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
