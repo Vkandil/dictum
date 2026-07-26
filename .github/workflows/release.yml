@@ -39,7 +39,7 @@ jobs:
           $config = @{ bundle = @{ windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } | ConvertTo-Json -Depth 4
           Set-Content -Path src-tauri/tauri.windows-signing.conf.json -Value $config
           'config_args=--config src-tauri/tauri.windows-signing.conf.json' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
