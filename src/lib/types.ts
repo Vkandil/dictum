@@ -9,7 +9,6 @@ export interface FormattingSettings {
   removeFillers: boolean;
   fixGrammar: boolean;
   tone: Tone;
-  fastInsert: boolean;
 }
 
 export interface AppSettings {
@@ -24,6 +23,7 @@ export interface AppSettings {
   injection: InjectionMode;
   formatting: FormattingSettings;
   whisperMode: boolean;
+  snippetsVerbatim: boolean;
   history: { enabled: boolean; retentionDays: number; storeAudio: false };
   autostart: boolean;
   zeroRetention: boolean;
@@ -71,7 +71,8 @@ export interface ProviderManifest {
 
 export interface BootstrapData {
   settings: AppSettings;
-  hasApiKey: Record<string, boolean>;
+  /** Masked preview per provider that has a saved key, e.g. `{ mistral: "••••••••a1b2" }`. */
+  apiKeyHints: Record<string, string>;
   devices: AudioDevice[];
   dictionary: DictionaryTerm[];
   snippets: Snippet[];

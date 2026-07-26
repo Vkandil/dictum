@@ -16,9 +16,9 @@ export const defaultSettings: AppSettings = {
     removeFillers: true,
     fixGrammar: true,
     tone: "auto",
-    fastInsert: false,
   },
   whisperMode: false,
+  snippetsVerbatim: true,
   history: { enabled: true, retentionDays: 30, storeAudio: false },
   autostart: false,
   zeroRetention: true,
@@ -29,7 +29,7 @@ export const defaultSettings: AppSettings = {
 
 export const browserBootstrap: BootstrapData = {
   settings: defaultSettings,
-  hasApiKey: {},
+  apiKeyHints: {},
   devices: [{ id: "default", name: "Default microphone", isDefault: true }],
   dictionary: [],
   snippets: [],

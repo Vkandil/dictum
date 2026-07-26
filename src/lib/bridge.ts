@@ -28,6 +28,14 @@ export async function setAutostart(enabled: boolean): Promise<void> {
   if (isTauri()) await invoke("set_autostart", { enabled });
 }
 
+export async function startMicTest(deviceId: string | null): Promise<void> {
+  if (isTauri()) await invoke("start_mic_test", { deviceId });
+}
+
+export async function stopMicTest(): Promise<void> {
+  if (isTauri()) await invoke("stop_mic_test");
+}
+
 export async function checkHotkey(combo: string): Promise<void> {
   if (isTauri()) await invoke("check_hotkey", { combo });
 }

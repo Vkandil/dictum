@@ -155,15 +155,67 @@ fn clean_model_output(value: &str) -> String {
     }
 }
 
-pub fn expand_snippets(raw: &str, snippets: &[(String, String)]) -> String {
-    let normalized = raw.trim().trim_end_matches(['.', '!', '?']).to_lowercase();
-    if let Some((_, expansion)) = snippets
-        .iter()
-        .find(|(trigger, _)| trigger.to_lowercase() == normalized)
-    {
-        return expansion.clone();
+/// Split text into `(start_byte, end_byte, lowercased)` runs of alphanumeric characters.
+/// Everything else (spaces, punctuation) is treated as a separator, so matching is naturally
+/// tolerant of the punctuation and casing that speech-to-text adds around a spoken phrase.
+fn word_tokens(text: &str) -> Vec<(usize, usize, String)> {
+    let mut tokens = Vec::new();
+    let mut start: Option<usize> = None;
+    for (index, ch) in text.char_indices() {
+        if ch.is_alphanumeric() {
+            if start.is_none() {
+                start = Some(index);
+            }
+        } else if let Some(begin) = start.take() {
+            tokens.push((begin, index, text[begin..index].to_lowercase()));
+        }
     }
-    raw.to_string()
+    if let Some(begin) = start {
+        tokens.push((begin, text.len(), text[begin..].to_lowercase()));
+    }
+    tokens
+}
+
+/// Expand voice snippets inline: every occurrence of a trigger phrase anywhere in the
+/// transcript is replaced by its expansion, matching whole words case-insensitively and
+/// ignoring surrounding punctuation. Returns the rewritten text and whether any snippet fired
+/// (callers use this to optionally insert the expansion verbatim, bypassing AI formatting).
+pub fn expand_snippets(raw: &str, snippets: &[(String, String)]) -> (String, bool) {
+    let mut text = raw.to_string();
+    let mut fired = false;
+    for (trigger, expansion) in snippets {
+        let trigger_tokens: Vec<String> = word_tokens(trigger).into_iter().map(|t| t.2).collect();
+        if trigger_tokens.is_empty() {
+            continue;
+        }
+        // Only search past the last insertion so a trigger appearing inside its own expansion
+        // can never cause an infinite loop.
+        let mut min_offset = 0usize;
+        loop {
+            let tokens = word_tokens(&text);
+            let mut matched: Option<(usize, usize)> = None;
+            for window in 0..tokens.len() {
+                if tokens[window].0 < min_offset {
+                    continue;
+                }
+                if window + trigger_tokens.len() > tokens.len() {
+                    break;
+                }
+                if (0..trigger_tokens.len()).all(|k| tokens[window + k].2 == trigger_tokens[k]) {
+                    matched = Some((
+                        tokens[window].0,
+                        tokens[window + trigger_tokens.len() - 1].1,
+                    ));
+                    break;
+                }
+            }
+            let Some((start, end)) = matched else { break };
+            text.replace_range(start..end, expansion);
+            fired = true;
+            min_offset = start + expansion.len();
+        }
+    }
+    (text, fired)
 }
 
 pub fn assistant_query(raw: &str) -> &str {
@@ -196,11 +248,49 @@ mod tests {
         assert!(prompt.contains("identifiers"));
     }
     #[test]
-    fn exact_snippet_ignores_terminal_punctuation() {
-        assert_eq!(
-            expand_snippets("my email.", &[("my email".into(), "me@example.com".into())]),
-            "me@example.com"
-        );
+    fn snippet_matches_whole_utterance_ignoring_punctuation_and_case() {
+        let snippets = [("my email".into(), "me@example.com".into())];
+        let (text, fired) = expand_snippets("My email.", &snippets);
+        assert_eq!(text, "me@example.com.");
+        assert!(fired);
+    }
+
+    #[test]
+    fn snippet_expands_inline_within_a_sentence() {
+        let snippets = [("mon email".into(), "kandil.victor@gmail.com".into())];
+        let (text, fired) = expand_snippets("écris à mon email", &snippets);
+        assert_eq!(text, "écris à kandil.victor@gmail.com");
+        assert!(fired);
+    }
+
+    #[test]
+    fn snippet_replaces_every_occurrence() {
+        let snippets = [("sig".into(), "Kandil".into())];
+        let (text, _) = expand_snippets("sig and again sig", &snippets);
+        assert_eq!(text, "Kandil and again Kandil");
+    }
+
+    #[test]
+    fn snippet_only_matches_whole_words() {
+        let snippets = [("cat".into(), "DOG".into())];
+        let (text, fired) = expand_snippets("the category", &snippets);
+        assert_eq!(text, "the category");
+        assert!(!fired);
+    }
+
+    #[test]
+    fn snippet_expansion_containing_trigger_does_not_loop() {
+        let snippets = [("email".into(), "my email address".into())];
+        let (text, fired) = expand_snippets("send email", &snippets);
+        assert_eq!(text, "send my email address");
+        assert!(fired);
+    }
+
+    #[test]
+    fn no_snippet_leaves_text_untouched() {
+        let (text, fired) = expand_snippets("hello world", &[]);
+        assert_eq!(text, "hello world");
+        assert!(!fired);
     }
     #[test]
     fn assistant_prefix_is_not_sent_as_part_of_the_question() {

@@ -80,6 +80,8 @@ pub fn run() {
             commands::save_api_key,
             commands::validate_api_key,
             commands::set_autostart,
+            commands::start_mic_test,
+            commands::stop_mic_test,
             commands::check_hotkey,
             commands::start_recording,
             commands::stop_recording,

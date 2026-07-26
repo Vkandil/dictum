@@ -7,7 +7,14 @@ export default function Overlay() {
   const [state, setState] = useState<DictationState>({ phase: "idle" });
   useEffect(() => {
     let off: (() => void) | undefined;
-    listenDictation(setState).then((fn) => { off = fn; });
+    // The mic-level meter and the realtime live-transcript both emit "listening" updates
+    // independently, each carrying only its own field (level, or text/message). Replacing
+    // the whole state on every event let the ~22/s level ticks instantly blank out the live
+    // caption the moment it appeared. Merge within the same phase so they coexist; a phase
+    // change still fully replaces state, correctly resetting stale fields between phases.
+    listenDictation((next) => {
+      setState((prev) => (next.phase === prev.phase ? { ...prev, ...next } : next));
+    }).then((fn) => { off = fn; });
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") void cancelRecording(); };
     window.addEventListener("keydown", key);
     return () => { off?.(); window.removeEventListener("keydown", key); };
@@ -21,7 +28,7 @@ export default function Overlay() {
   if (state.phase === "idle" || state.phase === "cancelled") return null;
   const working = state.phase === "transcribing" || state.phase === "formatting";
   const title = state.phase === "listening"
-    ? state.text || "Listening"
+    ? state.text || state.message || "Listening"
     : state.phase === "transcribing"
       ? state.message || "Transcribing"
       : state.phase === "formatting"

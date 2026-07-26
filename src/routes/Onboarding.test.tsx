@@ -7,28 +7,40 @@ import { defaultSettings } from "../lib/defaults";
 import type { DictationState } from "../lib/types";
 import Onboarding from "./Onboarding";
 
-const bridge = vi.hoisted(() => ({
-  listenHandler: undefined as ((state: DictationState) => void) | undefined,
-  listenDictation: vi.fn(async (handler: (state: DictationState) => void) => {
-    bridge.listenHandler = handler;
-    return () => undefined;
-  }),
-  cancelRecording: vi.fn(),
-  checkHotkey: vi.fn(),
-  openPermissions: vi.fn(),
-  saveApiKey: vi.fn(),
-  saveSettings: vi.fn(),
-  startRecording: vi.fn(),
-  stopRecording: vi.fn(),
-  validateApiKey: vi.fn(),
-}));
+// Mirrors Tauri's event API: several components can listen at once (the onboarding step and the
+// microphone tester both do), each gets every event, and unlistening removes only its own
+// handler. Modelling this as a single slot let a second listener silently replace the first.
+const bridge = vi.hoisted(() => {
+  const listeners: ((state: DictationState) => void)[] = [];
+  return {
+    listeners,
+    listenHandler: (state: DictationState) => listeners.forEach((handler) => handler(state)),
+    listenDictation: vi.fn(async (handler: (state: DictationState) => void) => {
+      listeners.push(handler);
+      return () => {
+        const index = listeners.indexOf(handler);
+        if (index >= 0) listeners.splice(index, 1);
+      };
+    }),
+    cancelRecording: vi.fn(),
+    checkHotkey: vi.fn(),
+    openPermissions: vi.fn(),
+    saveApiKey: vi.fn(),
+    saveSettings: vi.fn(),
+    startRecording: vi.fn(),
+    startMicTest: vi.fn(),
+    stopMicTest: vi.fn(),
+    stopRecording: vi.fn(),
+    validateApiKey: vi.fn(),
+  };
+});
 
 vi.mock("../lib/bridge", () => bridge);
 
 describe("onboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    bridge.listenHandler = undefined;
+    bridge.listeners.length = 0;
   });
   afterEach(cleanup);
 

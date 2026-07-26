@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Mutex,
 };
 use std::time::{Duration, Instant};
@@ -28,6 +28,20 @@ pub struct AppState {
     pub last_inserted: Mutex<Option<String>>,
     pub last_shortcut: Mutex<Option<Instant>>,
     pub realtime_final: Mutex<Option<String>>,
+    pub realtime_done: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
+    pub realtime_live: Mutex<Option<String>>,
+    /// Whether this dictation may type realtime text straight into the focused app. False in
+    /// hold-to-talk mode: the user is physically holding the shortcut's modifiers (e.g.
+    /// Ctrl+Shift) for as long as they speak, so every synthetic character we send arrives as
+    /// Ctrl+Shift+<key> - swallowed as a shortcut or mangled into stray accented characters
+    /// instead of inserted as text. Synthetically releasing a key the user is physically
+    /// holding down doesn't work, so live typing is simply not possible in that mode.
+    pub realtime_live_typing: AtomicBool,
+    /// Incremented once per dictation. A realtime session that is still draining when the next
+    /// dictation begins would otherwise keep typing into it and overwrite the newer session's
+    /// bookkeeping; each session captures the epoch it belongs to and goes silent once it no
+    /// longer matches.
+    pub dictation_epoch: AtomicU64,
     pub operation: Mutex<CancellationToken>,
 }
 
@@ -43,6 +57,10 @@ impl AppState {
             last_inserted: Mutex::new(None),
             last_shortcut: Mutex::new(None),
             realtime_final: Mutex::new(None),
+            realtime_done: Mutex::new(None),
+            realtime_live: Mutex::new(None),
+            realtime_live_typing: AtomicBool::new(false),
+            dictation_epoch: AtomicU64::new(0),
             operation: Mutex::new(CancellationToken::new()),
         }
     }
@@ -52,7 +70,10 @@ impl AppState {
 #[serde(rename_all = "camelCase")]
 pub struct BootstrapData {
     settings: AppSettings,
-    has_api_key: HashMap<String, bool>,
+    /// Per provider, a masked preview of the stored key (e.g. "••••••••a1b2"), present only for
+    /// providers that actually have one saved. Lets the UI show *which* key is in place instead
+    /// of prompting as if none existed, without ever handing the secret back to the frontend.
+    api_key_hints: HashMap<String, String>,
     devices: Vec<AudioDevice>,
     dictionary: Vec<DictionaryTerm>,
     snippets: Vec<Snippet>,
@@ -78,18 +99,18 @@ struct DictationEvent<'a> {
 pub fn bootstrap(state: State<'_, AppState>) -> Result<BootstrapData, String> {
     let settings = state.store.settings().map_err(display)?;
     let providers = state.store.providers().map_err(display)?;
-    let has_api_key = providers
+    let api_key_hints = providers
         .iter()
-        .map(|provider| {
-            (
-                provider.id.clone(),
-                keychain::get(&provider.id).ok().flatten().is_some(),
-            )
+        .filter_map(|provider| {
+            keychain::get(&provider.id)
+                .ok()
+                .flatten()
+                .map(|key| (provider.id.clone(), mask_api_key(&key)))
         })
         .collect();
     Ok(BootstrapData {
         settings,
-        has_api_key,
+        api_key_hints,
         devices: AudioRecorder::devices().unwrap_or_default(),
         dictionary: state.store.dictionary().map_err(display)?,
         snippets: state.store.snippets().map_err(display)?,
@@ -197,6 +218,31 @@ pub async fn validate_api_key(
     Ok(())
 }
 
+/// Opens a microphone purely to show its live signal level, so the user can confirm a device
+/// works before relying on it. Takes the device explicitly rather than reading saved settings:
+/// in Settings the microphone dropdown may have been changed but not saved yet, and the whole
+/// point is to test the one being considered. Nothing is transcribed or inserted - the audio is
+/// discarded by `stop_mic_test`.
+#[tauri::command]
+pub fn start_mic_test(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    device_id: Option<String>,
+) -> Result<(), String> {
+    if state.audio.is_active() {
+        return Err("stop the current dictation before testing the microphone".into());
+    }
+    state
+        .audio
+        .start(app, device_id.as_deref(), false, None)
+        .map_err(display)
+}
+
+#[tauri::command]
+pub fn stop_mic_test(state: State<'_, AppState>) {
+    state.audio.cancel();
+}
+
 #[tauri::command]
 pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
     if enabled {
@@ -244,8 +290,21 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
     *state.target_app.lock().unwrap() = Some(focus::current());
     state.command_mode.store(command_mode, Ordering::SeqCst);
     *state.realtime_final.lock().unwrap() = None;
+    *state.realtime_done.lock().unwrap() = None;
+    *state.realtime_live.lock().unwrap() = None;
+    // Live typing needs a shortcut mode that leaves no key held while the user speaks; in
+    // hold-to-talk the held Ctrl/Shift turn every character we type into a shortcut. There,
+    // fall back to previewing in the HUD and inserting once at the end (which also keeps AI
+    // formatting, unavailable on the live path).
+    let live_typing = !command_mode && settings.hotkey.mode != "hold";
+    state
+        .realtime_live_typing
+        .store(live_typing, Ordering::SeqCst);
+    let epoch = state.dictation_epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let live_tx = if settings.realtime.enabled {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+        *state.realtime_done.lock().unwrap() = Some(done_rx);
         let provider = settings.realtime.provider.clone();
         let endpoint = if provider == "local" {
             settings.local_endpoint.clone()
@@ -255,8 +314,20 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
         let key = keychain::get(&provider)?;
         let model = settings.realtime.model.clone();
         let realtime_app = app.clone();
+        let cancellation = state.operation.lock().unwrap().clone();
         tauri::async_runtime::spawn(async move {
-            run_realtime(realtime_app, provider, endpoint, model, key, rx).await;
+            run_realtime(
+                realtime_app,
+                provider,
+                endpoint,
+                model,
+                key,
+                rx,
+                done_tx,
+                epoch,
+                cancellation,
+            )
+            .await;
         });
         Some(tx)
     } else {
@@ -376,7 +447,13 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         zero_retention: settings.zero_retention,
     };
     if settings.realtime.enabled {
-        tokio::time::sleep(Duration::from_millis(450)).await;
+        // Wait for the realtime session to signal it's done (final transcript, error, or
+        // exhausted reconnects) rather than a fixed guess. Bounded so a hung connection
+        // can't stall the dictation indefinitely - it just falls back to batch transcription.
+        let done_rx = state.realtime_done.lock().unwrap().take();
+        if let Some(done_rx) = done_rx {
+            let _ = tokio::time::timeout(Duration::from_secs(4), done_rx).await;
+        }
     }
     let realtime_text = state.realtime_final.lock().unwrap().take();
     let mut raw_parts = Vec::new();
@@ -389,64 +466,75 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             cost = capture.duration_ms as f64 / 60_000.0 * 0.006;
         }
     }
+    let used_realtime = !raw_parts.is_empty();
     let chunks = if raw_parts.is_empty() {
         capture.chunks.as_slice()
     } else {
         &[]
     };
-    let chunk_count = chunks.len();
-    for (chunk_index, chunk) in chunks.iter().enumerate() {
-        let part_error = format!(
-            "transcription part {} of {chunk_count} failed",
-            chunk_index + 1
-        );
-        if chunk_count > 1 {
-            let progress = format!("Transcribing part {} of {chunk_count}", chunk_index + 1);
-            emit(
-                app,
-                DictationEvent {
-                    phase: "transcribing",
-                    level: None,
-                    message: Some(&progress),
-                    text: None,
-                    error_code: None,
-                },
-            );
-        }
-        let primary = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = provider.transcribe(chunk, &options) => result };
-        let (transcript, billed_model, billed_provider) = match primary {
-            Ok(value) => (value, settings.model.clone(), settings.provider.clone()),
-            Err(primary_error) => {
-                if let Some(fallback_id) = &settings.fallback_provider {
-                    let fallback_manifest = state.store.provider(fallback_id)?;
-                    let fallback_key = keychain::get(fallback_id)?;
-                    if fallback_manifest.requires_api_key && fallback_key.is_none() {
-                        return Err(anyhow::Error::new(primary_error).context(part_error));
+    // Transcribe every part concurrently instead of awaiting them one at a time - a long
+    // dictation with several parts no longer takes N times as long as a single request.
+    // The "part X of Y" progress wording is intentionally gone: the caller already shows
+    // "Turning speech into text" once, and the user shouldn't need to know internally that
+    // their recording was split at all.
+    let outcomes = futures_util::future::join_all(chunks.iter().map(|chunk| {
+        let options = &options;
+        let cancellation = &cancellation;
+        let provider = provider.as_ref();
+        let state = &state;
+        let settings = &settings;
+        async move {
+            let primary = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = provider.transcribe(chunk, options) => result };
+            match primary {
+                Ok(value) => Ok((value, settings.model.clone(), settings.provider.clone())),
+                Err(primary_error) => {
+                    if let Some(fallback_id) = &settings.fallback_provider {
+                        let fallback_manifest = state.store.provider(fallback_id)?;
+                        let fallback_key = keychain::get(fallback_id)?;
+                        if fallback_manifest.requires_api_key && fallback_key.is_none() {
+                            return Err(anyhow::Error::new(primary_error)
+                                .context("transcription part failed"));
+                        }
+                        let fallback_model = fallback_manifest
+                            .models
+                            .iter()
+                            .find(|model| *model == &settings.model)
+                            .or_else(|| fallback_manifest.models.first())
+                            .context("fallback provider has no model")?
+                            .clone();
+                        let fallback = create_provider(
+                            fallback_manifest,
+                            fallback_key,
+                            Some(&settings.local_endpoint),
+                        );
+                        let mut fallback_options = options.clone();
+                        fallback_options.model = fallback_model.clone();
+                        let transcript = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = fallback.transcribe(chunk, &fallback_options) => result };
+                        let transcript = transcript.map_err(|_| {
+                            anyhow::Error::new(primary_error)
+                                .context("transcription part failed")
+                        })?;
+                        emit(
+                            app,
+                            DictationEvent {
+                                phase: "transcribing",
+                                level: None,
+                                message: Some("Switched to your backup provider"),
+                                text: None,
+                                error_code: None,
+                            },
+                        );
+                        Ok((transcript, fallback_model, fallback_id.clone()))
+                    } else {
+                        Err(anyhow::Error::new(primary_error).context("transcription part failed"))
                     }
-                    let fallback_model = fallback_manifest
-                        .models
-                        .iter()
-                        .find(|model| *model == &settings.model)
-                        .or_else(|| fallback_manifest.models.first())
-                        .context("fallback provider has no model")?
-                        .clone();
-                    let fallback = create_provider(
-                        fallback_manifest,
-                        fallback_key,
-                        Some(&settings.local_endpoint),
-                    );
-                    let mut fallback_options = options.clone();
-                    fallback_options.model = fallback_model.clone();
-                    let transcript = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = fallback.transcribe(chunk, &fallback_options) => result };
-                    let transcript = transcript.map_err(|_| {
-                        anyhow::Error::new(primary_error).context(part_error.clone())
-                    })?;
-                    (transcript, fallback_model, fallback_id.clone())
-                } else {
-                    return Err(anyhow::Error::new(primary_error).context(part_error));
                 }
             }
-        };
+        }
+    }))
+    .await;
+    for (chunk, outcome) in chunks.iter().zip(outcomes) {
+        let (transcript, billed_model, billed_provider) = outcome?;
         raw_parts.push(transcript.text);
         history_model = billed_model.clone();
         cost += transcript.cost_usd.unwrap_or(estimated_cost(
@@ -456,22 +544,55 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         ));
     }
     let raw = combine_transcript_parts(&raw_parts);
-    let snippets: Vec<_> = state
-        .store
-        .snippets()?
-        .into_iter()
-        .map(|s| (s.trigger, s.expansion))
-        .collect();
-    let expanded = format::expand_snippets(&raw, &snippets);
     let target = state
         .target_app
         .lock()
         .unwrap()
         .clone()
         .unwrap_or_else(focus::current);
+    let live_typed = state.realtime_live.lock().unwrap().take();
+    match (&live_typed, used_realtime) {
+        // Realtime already typed its transcript at the cursor as it was spoken, and that
+        // transcript is what `raw` holds. Don't re-insert it, and don't run AI formatting -
+        // formatting rewrites the whole sentence, which can't be applied word-by-word live and
+        // (deleting + retyping everything at the end) is exactly what corrupted the on-screen
+        // text before. AI formatting and snippets are intentionally unavailable on this path.
+        (Some(_), true) => {
+            *state.last_inserted.lock().unwrap() = Some(raw.clone());
+            if settings.history.enabled {
+                state.store.insert_history(
+                    &raw,
+                    &raw,
+                    Some(&target.name),
+                    capture.duration_ms as i64,
+                    cost,
+                    &history_model,
+                )?;
+                state.store.purge_history(settings.history.retention_days)?;
+            }
+            return Ok(raw);
+        }
+        // Realtime typed a partial transcript live, then failed before finishing, so `raw` came
+        // from batch transcription instead and doesn't match what's on screen. Remove the stale
+        // partial text and let the normal path insert the complete result, rather than leaving
+        // the document short while history records the full sentence.
+        (Some(live), false) => {
+            let _ = inject::live_update(live, "");
+        }
+        _ => {}
+    }
+    let snippets: Vec<_> = state
+        .store
+        .snippets()?
+        .into_iter()
+        .map(|s| (s.trigger, s.expansion))
+        .collect();
+    let (expanded, snippet_fired) = format::expand_snippets(&raw, &snippets);
+    // When a snippet fires and verbatim insertion is enabled, insert the expansion exactly as
+    // configured — skip AI formatting so it can't reword an email, signature, or code block.
+    let skip_formatting = snippet_fired && settings.snippets_verbatim;
     let command_mode = state.command_mode.swap(false, Ordering::SeqCst);
     let mut replace_previous = None;
-    let mut fast_inserted = None;
     let final_text = if command_mode {
         let assistant = expanded.to_lowercase().starts_with("ask dictum")
             || expanded.to_lowercase().starts_with("answer ");
@@ -523,21 +644,13 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             FormatProvider { manifest: &manifest, api_key: api_key.as_deref(), zero_retention: settings.zero_retention },
             intent,
         ) => result? }
-    } else if settings.formatting.enabled {
-        if settings.formatting.fast_insert {
-            inject::inject(&expanded, &settings.injection)?;
-            fast_inserted = Some(expanded.clone());
-        }
+    } else if settings.formatting.enabled && !skip_formatting {
         emit(
             app,
             DictationEvent {
                 phase: "formatting",
                 level: None,
-                message: Some(if settings.formatting.fast_insert {
-                    "Refining the inserted transcript"
-                } else {
-                    "Polishing your words"
-                }),
+                message: Some("Polishing your words"),
                 text: None,
                 error_code: None,
             },
@@ -556,7 +669,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     if cancellation.is_cancelled() {
         return Err(TranscribeError::Cancelled.into());
     }
-    if let Some(previous) = replace_previous.or(fast_inserted) {
+    if let Some(previous) = replace_previous {
         inject::replace_previous(&final_text, &previous, &settings.injection)?;
     } else {
         inject::inject(&final_text, &settings.injection)?;
@@ -585,6 +698,27 @@ fn combine_transcript_parts(parts: &[String]) -> String {
         .join(" ")
 }
 
+const REALTIME_MAX_ATTEMPTS: u8 = 3;
+// The HUD is a small, fixed-size window; keep a server error readable within it instead of
+// letting a long validation-error payload overflow past its bounds.
+const REALTIME_ERROR_PREVIEW_CHARS: usize = 150;
+
+fn truncate_reason(reason: &str) -> String {
+    if reason.chars().count() <= REALTIME_ERROR_PREVIEW_CHARS {
+        reason.to_string()
+    } else {
+        let truncated: String = reason.chars().take(REALTIME_ERROR_PREVIEW_CHARS).collect();
+        format!("{truncated}…")
+    }
+}
+
+/// Streams microphone audio to a realtime transcription session and relays partial/final
+/// text back to the UI. Unlike the original version, failures are never silent: a failed
+/// or dropped connection surfaces a short notice (via the "listening" phase's `message`)
+/// instead of quietly falling back to batch transcription with no explanation. A mid-stream
+/// drop is retried a bounded number of times, carrying the transcript accumulated so far
+/// forward as a prefix so a reconnect doesn't lose what was already recognized.
+#[allow(clippy::too_many_arguments)]
 async fn run_realtime(
     app: AppHandle,
     provider: String,
@@ -592,27 +726,154 @@ async fn run_realtime(
     model: String,
     key: Option<String>,
     mut audio_rx: tokio::sync::mpsc::Receiver<Vec<i16>>,
+    done: tokio::sync::oneshot::Sender<()>,
+    epoch: u64,
+    cancellation: CancellationToken,
 ) {
     use crate::transcribe::realtime::{RealtimeDialect, RealtimeEvent, RealtimeSession};
-    let Ok(session) = RealtimeSession::connect(
-        &endpoint,
-        &model,
-        key.as_deref(),
-        RealtimeDialect::for_provider(&provider),
-    )
-    .await
-    else {
-        return;
+    // This session may only touch shared state or the user's document while it is still the
+    // current dictation and hasn't been cancelled - otherwise a late delta could type into a
+    // newer dictation, or re-insert text that Escape just removed.
+    let owns_dictation = |app: &AppHandle| {
+        !cancellation.is_cancelled()
+            && app
+                .state::<AppState>()
+                .dictation_epoch
+                .load(Ordering::SeqCst)
+                == epoch
     };
-    let tx = session.sender();
-    let mut events = session.events;
+    let dialect = RealtimeDialect::for_provider(&provider);
+    let mut transcript = String::new();
     let mut finished = false;
+    let mut attempt = 0u8;
     loop {
-        tokio::select! {
-            audio = audio_rx.recv(), if !finished => match audio { Some(samples) => { let _ = tx.send(samples).await; }, None => { let _ = tx.send(Vec::new()).await; finished = true; } },
-            event = events.recv() => match event { Some(RealtimeEvent::Partial(text)) => emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&text), error_code: None }), Some(RealtimeEvent::Final(text)) => { *app.state::<AppState>().realtime_final.lock().unwrap() = Some(text); break; }, Some(RealtimeEvent::Error(_)) | None => break }
+        let session =
+            match RealtimeSession::connect(&endpoint, &model, key.as_deref(), dialect).await {
+                Ok(session) => session,
+                Err(_) => {
+                    let notice = if attempt == 0 {
+                        "Realtime unavailable — recording normally"
+                    } else {
+                        "Realtime connection lost — recording normally"
+                    };
+                    emit(
+                        &app,
+                        DictationEvent {
+                            phase: "listening",
+                            level: None,
+                            message: Some(notice),
+                            text: None,
+                            error_code: None,
+                        },
+                    );
+                    break;
+                }
+            };
+        attempt += 1;
+        let tx = session.sender();
+        let mut events = session.events;
+        let prefix = transcript.clone();
+        let mut last_error: Option<String> = None;
+        loop {
+            tokio::select! {
+                audio = audio_rx.recv(), if !finished => match audio {
+                    Some(samples) => { let _ = tx.send(samples).await; }
+                    None => { let _ = tx.send(Vec::new()).await; finished = true; }
+                },
+                event = events.recv() => match event {
+                    Some(RealtimeEvent::Partial(text)) => {
+                        transcript = format!("{prefix}{text}");
+                        if !owns_dictation(&app) { return; }
+                        // Type the live transcript straight into the focused app when the
+                        // shortcut mode allows it; otherwise just preview it in the HUD. Only
+                        // ever *appends*: if the new transcript isn't a pure extension of
+                        // what's on screen (Voxtral revising a word), leave it be rather than
+                        // risk a Backspace-based fixup racing the target app.
+                        let state = app.state::<AppState>();
+                        if state.realtime_live_typing.load(Ordering::SeqCst) {
+                            let mut live = state.realtime_live.lock().unwrap();
+                            let previous = live.clone().unwrap_or_default();
+                            if let Some(suffix) = transcript.strip_prefix(previous.as_str()) {
+                                if !suffix.is_empty() {
+                                    *live = Some(transcript.clone());
+                                    drop(live);
+                                    let _ = inject::type_only(suffix);
+                                }
+                            }
+                        } else if !state.command_mode.load(Ordering::SeqCst) {
+                            emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&transcript), error_code: None });
+                        }
+                    }
+                    Some(RealtimeEvent::Final(text)) => {
+                        transcript = format!("{prefix}{text}");
+                        if !owns_dictation(&app) { return; }
+                        // Same append-only rule as partials - never a backspace-based fixup in
+                        // the live path. Since Voxtral's deltas are incremental (monotonic),
+                        // the final text is just the last append, so this types the remaining
+                        // suffix and nothing is ever deleted mid-stream.
+                        let state = app.state::<AppState>();
+                        if state.realtime_live_typing.load(Ordering::SeqCst) {
+                            let mut live = state.realtime_live.lock().unwrap();
+                            let previous = live.clone().unwrap_or_default();
+                            if let Some(suffix) = transcript.strip_prefix(previous.as_str()) {
+                                if !suffix.is_empty() {
+                                    *live = Some(transcript.clone());
+                                    drop(live);
+                                    let _ = inject::type_only(suffix);
+                                }
+                            }
+                        }
+                        *state.realtime_final.lock().unwrap() = Some(transcript);
+                        let _ = done.send(());
+                        return;
+                    }
+                    Some(RealtimeEvent::Error(reason)) => { last_error = Some(reason); break; }
+                    None => break,
+                }
+            }
         }
+        if finished || attempt >= REALTIME_MAX_ATTEMPTS {
+            if !finished {
+                let notice = match &last_error {
+                    Some(reason) => format!(
+                        "Realtime connection lost ({}) — recording normally",
+                        truncate_reason(reason)
+                    ),
+                    None => "Realtime connection lost — recording normally".to_string(),
+                };
+                emit(
+                    &app,
+                    DictationEvent {
+                        phase: "listening",
+                        level: None,
+                        message: Some(&notice),
+                        text: None,
+                        error_code: None,
+                    },
+                );
+            }
+            break;
+        }
+        let notice = match &last_error {
+            Some(reason) => format!(
+                "Realtime connection lost ({}) — reconnecting…",
+                truncate_reason(reason)
+            ),
+            None => "Realtime connection lost — reconnecting…".to_string(),
+        };
+        emit(
+            &app,
+            DictationEvent {
+                phase: "listening",
+                level: None,
+                message: Some(&notice),
+                text: None,
+                error_code: None,
+            },
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
     }
+    let _ = done.send(());
 }
 
 fn estimated_cost(audio_ms: u64, model: &str, provider: &str) -> f64 {
@@ -637,6 +898,11 @@ pub fn cancel(app: &AppHandle, state: &AppState) {
     state.operation.lock().unwrap().cancel();
     state.busy.store(false, Ordering::SeqCst);
     state.command_mode.store(false, Ordering::SeqCst);
+    if let Some(live) = state.realtime_live.lock().unwrap().take() {
+        // Realtime may have already typed the in-progress transcript at the cursor; cancelling
+        // must mean nothing gets inserted, so remove it rather than leaving it behind.
+        let _ = inject::live_update(&live, "");
+    }
     emit(
         app,
         DictationEvent {
@@ -780,21 +1046,115 @@ fn hide_overlay_later(app: AppHandle, delay: u64) {
 fn display(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
+
+/// Shows only the last four characters of a stored key - enough to recognise which key is
+/// saved, not enough to reconstruct it. Very short values are masked completely rather than
+/// leaking most of themselves.
+fn mask_api_key(key: &str) -> String {
+    const VISIBLE: usize = 4;
+    let count = key.chars().count();
+    if count <= VISIBLE * 2 {
+        return "••••••••".into();
+    }
+    let tail: String = key.chars().skip(count - VISIBLE).collect();
+    format!("••••••••{tail}")
+}
 fn normalize_word(word: &str) -> String {
     word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
         .to_string()
 }
+#[derive(PartialEq)]
+enum DiffOp {
+    Match,
+    Delete,
+    Insert,
+}
+
+/// Word-level diff via LCS backtracking. Unlike a positional (index-by-index) comparison,
+/// this stays aligned when the user's correction adds or removes words instead of only
+/// swapping one word for another, so a diff op reflects a real edit rather than a shift.
+fn diff_ops(old: &[String], new: &[String]) -> Vec<DiffOp> {
+    let (n, m) = (old.len(), new.len());
+    let mut table = vec![vec![0u32; m + 1]; n + 1];
+    for i in 1..=n {
+        for j in 1..=m {
+            table[i][j] = if old[i - 1] == new[j - 1] {
+                table[i - 1][j - 1] + 1
+            } else {
+                table[i - 1][j].max(table[i][j - 1])
+            };
+        }
+    }
+    let (mut i, mut j) = (n, m);
+    let mut ops = Vec::new();
+    while i > 0 && j > 0 {
+        if old[i - 1] == new[j - 1] {
+            ops.push(DiffOp::Match);
+            i -= 1;
+            j -= 1;
+        } else if table[i - 1][j] >= table[i][j - 1] {
+            ops.push(DiffOp::Delete);
+            i -= 1;
+        } else {
+            ops.push(DiffOp::Insert);
+            j -= 1;
+        }
+    }
+    for _ in 0..i {
+        ops.push(DiffOp::Delete);
+    }
+    for _ in 0..j {
+        ops.push(DiffOp::Insert);
+    }
+    ops.reverse();
+    ops
+}
+
+/// Only words inserted where something was also removed count as a learned correction
+/// (a misheard word replaced by the right one). Words merely added or removed, with nothing
+/// on the other side, are ordinary edits and are not vocabulary corrections.
+fn flush_hunk(
+    had_removal: bool,
+    additions: &mut Vec<String>,
+    old: &[String],
+    learned: &mut Vec<String>,
+) {
+    if had_removal {
+        for word in additions.drain(..) {
+            if word.len() > 1 && !old.contains(&word) && !learned.contains(&word) {
+                learned.push(word);
+            }
+        }
+    } else {
+        additions.clear();
+    }
+}
+
 fn correction_terms(original: &str, corrected: &str) -> Vec<String> {
-    let old: Vec<_> = original.split_whitespace().map(normalize_word).collect();
-    corrected
-        .split_whitespace()
-        .map(normalize_word)
-        .enumerate()
-        .filter_map(|(index, word)| {
-            (word.len() > 1 && old.get(index) != Some(&word) && !old.contains(&word))
-                .then_some(word)
-        })
-        .collect()
+    let old: Vec<String> = original.split_whitespace().map(normalize_word).collect();
+    let new: Vec<String> = corrected.split_whitespace().map(normalize_word).collect();
+    let ops = diff_ops(&old, &new);
+
+    let mut learned = Vec::new();
+    let mut new_index = 0usize;
+    let mut had_removal = false;
+    let mut additions: Vec<String> = Vec::new();
+    for op in &ops {
+        match op {
+            DiffOp::Match => {
+                flush_hunk(had_removal, &mut additions, &old, &mut learned);
+                had_removal = false;
+                new_index += 1;
+            }
+            DiffOp::Delete => had_removal = true,
+            DiffOp::Insert => {
+                additions.push(new[new_index].clone());
+                new_index += 1;
+            }
+        }
+    }
+    flush_hunk(had_removal, &mut additions, &old, &mut learned);
+    learned
 }
 
 #[cfg(test)]
@@ -812,10 +1172,36 @@ mod tests {
     }
 
     #[test]
+    fn masked_keys_reveal_only_the_last_four_characters() {
+        assert_eq!(mask_api_key("sk-or-v1-abcdef123456"), "••••••••3456");
+        // Anything short enough that four characters would give most of it away is fully masked.
+        assert_eq!(mask_api_key("abcd1234"), "••••••••");
+        assert_eq!(mask_api_key(""), "••••••••");
+    }
+
+    #[test]
     fn learns_new_terms_from_a_user_correction() {
         assert_eq!(
             correction_terms("Meet Victor at noon", "Meet Viktor at noon"),
             vec!["Viktor"]
+        );
+    }
+
+    #[test]
+    fn inserting_a_word_does_not_learn_it_as_a_correction() {
+        // Adding "really" shifts every later word by one position; a naive index-based
+        // comparison would misread that shift as a vocabulary correction.
+        assert_eq!(
+            correction_terms("I love Victor", "I really love Viktor"),
+            vec!["Viktor"]
+        );
+    }
+
+    #[test]
+    fn removing_a_word_learns_nothing() {
+        assert_eq!(
+            correction_terms("Hello there friend", "Hello friend"),
+            Vec::<String>::new()
         );
     }
 

@@ -57,22 +57,36 @@ impl RealtimeSession {
             .await
             .context("realtime connection failed")?;
 
-        // vLLM sends session.created first, then requires the served model in
-        // session.update. Mistral carries the model in the URL query.
-        if dialect == RealtimeDialect::OpenAiCompatible {
-            let first = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
-                .await
-                .context("realtime server did not create a session")?
-                .context("realtime server closed before session creation")??;
-            ensure_session_created(&first)?;
-            socket
-                .send(Message::Text(
-                    json!({"type":"session.update","model":model})
-                        .to_string()
-                        .into(),
-                ))
-                .await?;
-        }
+        // Both dialects announce a created session before accepting audio, then expect a
+        // configuration message back. vLLM/OpenAI-compatible servers want the served model
+        // confirmed. Mistral's own Python SDK (mistralai.extra.realtime), read directly from
+        // its source on PyPI, sends {"type":"session.update","session":{"audio_format":{...}}}
+        // - audio_format nested under "session", not flat - and requires it as a mandatory
+        // parameter (AudioFormat(encoding="pcm_s16le", sample_rate=16000)); Dictum never sent
+        // this at all for the Mistral dialect, which is why the server rejected our first
+        // audio message with a validation error against RealtimeTranscriptionSessionUpdateMessage.
+        let first = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+            .await
+            .context("realtime server did not create a session")?
+            .context("realtime server closed before session creation")??;
+        ensure_session_created(&first)?;
+        let update = match dialect {
+            RealtimeDialect::OpenAiCompatible => json!({"type":"session.update","model":model}),
+            // target_streaming_delay_ms paces how often the server emits text deltas: a larger
+            // value trades a little latency for fewer, longer, more accurate chunks. ~480ms is
+            // Mistral's documented sweet spot and keeps the number of live keystroke bursts we
+            // send into the target app low enough to stay clean, instead of dozens per second.
+            RealtimeDialect::Mistral => json!({
+                "type": "session.update",
+                "session": {
+                    "audio_format": {"encoding": "pcm_s16le", "sample_rate": 16000},
+                    "target_streaming_delay_ms": 480,
+                },
+            }),
+        };
+        socket
+            .send(Message::Text(update.to_string().into()))
+            .await?;
 
         let (mut sink, mut stream) = socket.split();
         let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<i16>>(32);
@@ -81,17 +95,29 @@ impl RealtimeSession {
         tokio::spawn(async move {
             while let Some(samples) = audio_rx.recv().await {
                 if samples.is_empty() {
-                    let commit = if dialect == RealtimeDialect::OpenAiCompatible {
-                        json!({"type":"input_audio_buffer.commit","final":true})
-                    } else {
-                        json!({"type":"input_audio_buffer.commit"})
-                    };
-                    let _ = sink.send(Message::Text(commit.to_string().into())).await;
+                    match dialect {
+                        RealtimeDialect::OpenAiCompatible => {
+                            let commit = json!({"type":"input_audio_buffer.commit","final":true});
+                            let _ = sink.send(Message::Text(commit.to_string().into())).await;
+                        }
+                        // Mistral's SDK sends a flush before the end-of-audio message.
+                        RealtimeDialect::Mistral => {
+                            let flush = json!({"type":"input_audio.flush"});
+                            let _ = sink.send(Message::Text(flush.to_string().into())).await;
+                            let end = json!({"type":"input_audio.end"});
+                            let _ = sink.send(Message::Text(end.to_string().into())).await;
+                        }
+                    }
                     break;
                 }
                 let bytes: Vec<u8> = samples.into_iter().flat_map(i16::to_le_bytes).collect();
-                let payload =
-                    json!({"type":"input_audio_buffer.append","audio":STANDARD.encode(bytes)});
+                let audio = STANDARD.encode(bytes);
+                let payload = match dialect {
+                    RealtimeDialect::OpenAiCompatible => {
+                        json!({"type":"input_audio_buffer.append","audio":audio})
+                    }
+                    RealtimeDialect::Mistral => json!({"type":"input_audio.append","audio":audio}),
+                };
                 if sink
                     .send(Message::Text(payload.to_string().into()))
                     .await
@@ -157,9 +183,12 @@ fn ensure_session_created(message: &Message) -> Result<()> {
         anyhow::bail!("realtime server returned a non-text session event")
     };
     let value: serde_json::Value = serde_json::from_str(raw)?;
+    let event_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    // Both dialects use "session.created", confirmed for Mistral from its own SDK source.
+    // Matching loosely on "created" costs nothing and is one less thing to get wrong.
     anyhow::ensure!(
-        value.get("type").and_then(|v| v.as_str()) == Some("session.created"),
-        "realtime server did not return session.created"
+        event_type.contains("created"),
+        "realtime server did not return a session-created event (got {event_type:?})"
     );
     Ok(())
 }
@@ -167,7 +196,12 @@ fn ensure_session_created(message: &Message) -> Result<()> {
 fn parse_server_event(raw: &str, transcript: &mut String) -> Option<RealtimeEvent> {
     let value: serde_json::Value = serde_json::from_str(raw).ok()?;
     let event_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
-    if event_type == "transcription.delta" || event_type.ends_with("transcription.delta") {
+    // Mistral's actual event is "transcription.text.delta" with a "text" field; the
+    // OpenAI-compatible/vLLM convention is "transcription.delta" with a "delta" field.
+    if event_type == "transcription.delta"
+        || event_type == "transcription.text.delta"
+        || event_type.ends_with("transcription.delta")
+    {
         let delta = value
             .get("delta")
             .or_else(|| value.get("text"))
@@ -263,6 +297,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn mistral_text_delta_event_is_recognized() {
+        let mut text = String::new();
+        assert_eq!(
+            parse_server_event(
+                r#"{"type":"transcription.text.delta","text":"Bonjour "}"#,
+                &mut text
+            ),
+            Some(RealtimeEvent::Partial("Bonjour ".into()))
+        );
+        assert_eq!(
+            parse_server_event(
+                r#"{"type":"transcription.text.delta","text":"le monde"}"#,
+                &mut text
+            ),
+            Some(RealtimeEvent::Partial("Bonjour le monde".into()))
+        );
+    }
+
     #[tokio::test]
     async fn vllm_handshake_audio_and_commit_round_trip() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -312,6 +365,78 @@ mod tests {
             "test-model",
             None,
             RealtimeDialect::OpenAiCompatible,
+        )
+        .await
+        .unwrap();
+        let tx = session.sender();
+        tx.send(vec![1, -2, 3]).await.unwrap();
+        assert_eq!(
+            session.events.recv().await,
+            Some(RealtimeEvent::Partial("live".into()))
+        );
+        tx.send(Vec::new()).await.unwrap();
+        assert_eq!(
+            session.events.recv().await,
+            Some(RealtimeEvent::Final("live".into()))
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mistral_handshake_sends_audio_format_update() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            socket
+                .send(Message::Text(
+                    json!({"type":"session.created"}).to_string().into(),
+                ))
+                .await
+                .unwrap();
+            let update = socket.next().await.unwrap().unwrap().into_text().unwrap();
+            let update: serde_json::Value = serde_json::from_str(&update).unwrap();
+            assert_eq!(update["type"], "session.update");
+            assert_eq!(update["session"]["audio_format"]["encoding"], "pcm_s16le");
+            assert_eq!(update["session"]["audio_format"]["sample_rate"], 16000);
+            assert_eq!(update["session"]["target_streaming_delay_ms"], 480);
+            let append = socket.next().await.unwrap().unwrap().into_text().unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&append).unwrap()["type"],
+                "input_audio.append"
+            );
+            socket
+                .send(Message::Text(
+                    json!({"type":"transcription.text.delta","text":"live"})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+            let flush = socket.next().await.unwrap().unwrap().into_text().unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&flush).unwrap()["type"],
+                "input_audio.flush"
+            );
+            let end = socket.next().await.unwrap().unwrap().into_text().unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&end).unwrap()["type"],
+                "input_audio.end"
+            );
+            socket
+                .send(Message::Text(
+                    json!({"type":"transcription.done"}).to_string().into(),
+                ))
+                .await
+                .unwrap();
+        });
+
+        let mut session = RealtimeSession::connect(
+            &format!("http://{address}/v1"),
+            "test-model",
+            None,
+            RealtimeDialect::Mistral,
         )
         .await
         .unwrap();

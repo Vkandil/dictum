@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -5,10 +7,41 @@ use aes_gcm::{
 use anyhow::{Context, Result};
 use argon2::Argon2;
 use base64::{engine::general_purpose::STANDARD, Engine};
+use futures_util::StreamExt;
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use crate::store::{Store, SyncPayload, SyncSettings};
+
+/// The sync endpoint is user-supplied and may be untrusted or simply broken. Bound both how
+/// long we'll wait on it and how much we'll read from it, so a hostile or misbehaving server
+/// can't hang the app or exhaust memory. A settings/dictionary/snippets export is a few
+/// hundred kilobytes at most, so this ceiling is far above any legitimate payload.
+const SYNC_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_SYNC_BYTES: usize = 8 * 1024 * 1024;
+
+fn client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(SYNC_TIMEOUT)
+        .build()
+        .context("could not create the sync HTTP client")
+}
+
+/// Reads a response body while enforcing `MAX_SYNC_BYTES`, refusing oversized data as it
+/// arrives instead of buffering whatever the server chooses to send.
+async fn read_capped(response: reqwest::Response) -> Result<Vec<u8>> {
+    let mut stream = response.bytes_stream();
+    let mut body = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.context("sync download failed")?;
+        anyhow::ensure!(
+            body.len() + chunk.len() <= MAX_SYNC_BYTES,
+            "sync document is larger than {MAX_SYNC_BYTES} bytes; refusing to load it"
+        );
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
 
 #[derive(Serialize, Deserialize)]
 struct Envelope {
@@ -26,15 +59,11 @@ pub async fn push(
 ) -> Result<()> {
     validate(settings, passphrase)?;
     let body = encrypt(&store.export_sync()?, passphrase)?;
-    let response = authorize(
-        reqwest::Client::new().put(&settings.endpoint),
-        settings,
-        auth_password,
-    )
-    .header("Content-Type", "application/vnd.dictum.encrypted+json")
-    .body(body)
-    .send()
-    .await?;
+    let response = authorize(client()?.put(&settings.endpoint), settings, auth_password)
+        .header("Content-Type", "application/vnd.dictum.encrypted+json")
+        .body(body)
+        .send()
+        .await?;
     anyhow::ensure!(
         response.status().is_success(),
         "sync upload returned HTTP {}",
@@ -50,19 +79,15 @@ pub async fn pull(
     auth_password: Option<&str>,
 ) -> Result<()> {
     validate(settings, passphrase)?;
-    let response = authorize(
-        reqwest::Client::new().get(&settings.endpoint),
-        settings,
-        auth_password,
-    )
-    .send()
-    .await?;
+    let response = authorize(client()?.get(&settings.endpoint), settings, auth_password)
+        .send()
+        .await?;
     anyhow::ensure!(
         response.status().is_success(),
         "sync download returned HTTP {}",
         response.status()
     );
-    let payload = decrypt(&response.bytes().await?, passphrase)?;
+    let payload = decrypt(&read_capped(response).await?, passphrase)?;
     store.import_sync(&payload)
 }
 

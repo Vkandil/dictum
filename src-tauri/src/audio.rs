@@ -355,16 +355,59 @@ fn encode_wav(samples: &[f32]) -> Result<Vec<u8>> {
     Ok(cursor.into_inner())
 }
 
+// How far back from the target cut point we're willing to look for a quiet moment to cut
+// on instead. Long enough to catch a natural pause between words or sentences, short enough
+// to stay comfortably under the provider's per-request processing limits.
+const CHUNK_SEARCH_SECONDS: usize = 3;
+// A candidate cut point only counts as "quiet" below this RMS level - otherwise continuous
+// speech with no real pause nearby would still get nudged earlier than necessary.
+const QUIET_ENERGY_THRESHOLD: f32 = 0.02;
+
 fn encode_chunks(samples: &[f32]) -> Result<Vec<AudioChunk>> {
-    samples
-        .chunks(TARGET_RATE as usize * MAX_CHUNK_SECONDS)
-        .map(|samples| {
-            Ok(AudioChunk {
-                wav: encode_wav(samples)?,
-                duration_ms: (samples.len() as u64 * 1000) / TARGET_RATE as u64,
-            })
-        })
-        .collect()
+    let target = TARGET_RATE as usize * MAX_CHUNK_SECONDS;
+    let mut chunks = Vec::new();
+    let mut start = 0usize;
+    while start < samples.len() {
+        let ideal_end = (start + target).min(samples.len());
+        let end = if ideal_end == samples.len() {
+            ideal_end
+        } else {
+            find_quiet_cut(samples, start, ideal_end).unwrap_or(ideal_end)
+        };
+        let slice = &samples[start..end];
+        chunks.push(AudioChunk {
+            wav: encode_wav(slice)?,
+            duration_ms: (slice.len() as u64 * 1000) / TARGET_RATE as u64,
+        });
+        start = end;
+    }
+    Ok(chunks)
+}
+
+/// Looks for the quietest short frame in the few seconds before `ideal_end` so a chunk
+/// boundary lands on a pause between words instead of slicing through one. Prefers the
+/// latest (closest to `ideal_end`) frame among near-equally quiet candidates, so a chunk
+/// still uses close to the full budget when nothing meaningfully quieter is found nearby.
+fn find_quiet_cut(samples: &[f32], start: usize, ideal_end: usize) -> Option<usize> {
+    let frame = (TARGET_RATE as usize / 50).max(1);
+    let search_span = (TARGET_RATE as usize * CHUNK_SEARCH_SECONDS).min(ideal_end - start);
+    if search_span < frame {
+        return None;
+    }
+    let search_start = ideal_end - search_span;
+    let mut best_index = None;
+    let mut best_energy = f32::MAX;
+    let mut offset = search_start;
+    while offset + frame <= ideal_end {
+        let window = &samples[offset..offset + frame];
+        let energy = (window.iter().map(|s| s * s).sum::<f32>() / window.len() as f32).sqrt();
+        if energy <= best_energy {
+            best_energy = energy;
+            best_index = Some(offset);
+        }
+        offset += frame;
+    }
+    best_index.filter(|_| best_energy <= QUIET_ENERGY_THRESHOLD)
 }
 
 #[cfg(test)]
@@ -406,6 +449,23 @@ mod tests {
             })
             .sum::<usize>();
         assert_eq!(encoded_samples, sample_count);
+    }
+
+    #[test]
+    fn cuts_near_a_pause_instead_of_mid_word() {
+        let rate = TARGET_RATE as usize;
+        let mut data = vec![0.5; rate * 28];
+        // A short pause at 23s, inside the 3s search window before the 25s target cut.
+        let quiet_start = rate * 23;
+        for sample in data[quiet_start..quiet_start + rate / 5].iter_mut() {
+            *sample = 0.0;
+        }
+        let chunks = encode_chunks(&data).unwrap();
+        assert!(
+            chunks[0].duration_ms > 20_000 && chunks[0].duration_ms < 24_500,
+            "expected the first chunk to end near the 23s pause, got {}ms",
+            chunks[0].duration_ms
+        );
     }
 
     #[test]

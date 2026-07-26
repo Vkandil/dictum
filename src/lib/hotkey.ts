@@ -46,6 +46,19 @@ export function shortcutFromKeyEvent(event: Pick<KeyboardEvent, "code" | "ctrlKe
   return { combo: [...modifiers, key].join("+") };
 }
 
+/** Turns a backend error into something a non-technical user can act on. Shared so every
+ *  surface that records a shortcut explains a conflict the same way. */
+export function friendlyShortcutError(error: unknown): string {
+  const message = String(error).replace(/^Error:\s*/i, "");
+  if (/os error 2|fichier spécifié est introuvable|file specified cannot be found/i.test(message)) {
+    return "Windows could not register this shortcut. Try a different combination.";
+  }
+  if (/already registered|conflict/i.test(message)) {
+    return "This shortcut is already used by Dictum, Windows, or another application. Try a different combination.";
+  }
+  return `Dictum could not save this shortcut: ${message}`;
+}
+
 export function displayShortcut(combo: string): string {
   return combo
     .split("+")
