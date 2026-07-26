@@ -60,7 +60,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 rdev = "0.5"
-windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 default = ["custom-protocol"]
