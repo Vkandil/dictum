@@ -84,7 +84,7 @@ kbd { font: 500 11px "DM Mono", monospace; background: #ece9e1; border: 1px soli
 .history-actions span { margin-right: auto; }
 .history-actions button, .term button, .snippet > button, .icon-button { border: 0; background: transparent; color: #8b8b82; cursor: pointer; padding: 5px; display: grid; place-items: center; }
 .history-actions button.copied { color: #2f9e5c; }
-.realtime-hold-warning { display: block; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #f6efe4; border: 1px solid #e4d6bf; color: #6b5836; line-height: 1.5; }
+.realtime-hold-warning { display: grid; gap: 10px; justify-items: start; margin-top: 10px; padding: 12px; border-radius: 10px; background: #f6efe4; border: 1px solid #e4d6bf; color: #6b5836; line-height: 1.5; font-size: 13px; }
 .empty-state { min-height: 230px; display: grid; place-items: center; align-content: center; text-align: center; }
 .empty-state h3 { margin: 14px 0 6px; }.empty-state p { margin: 0; max-width: 380px; }
 .empty-icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 15px; color: var(--accent); background: #f8e6df; }

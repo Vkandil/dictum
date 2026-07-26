@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { CheckCircle2, CloudCog, Eye, EyeOff, KeyRound, LoaderCircle, Plus, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import { Button, Card, Field, Input, Select, Toggle } from "../components/Ui";
 import { checkHotkey, runSync, saveApiKey, saveProvider, saveSettings, validateApiKey } from "../lib/bridge";
+import { displayShortcut, shortcutFromKeyEvent } from "../lib/hotkey";
 import type { AppSettings, AudioDevice, ProviderManifest } from "../lib/types";
 
 const LANGUAGES = [["auto", "Auto-detect / code-switch"], ["en", "English"], ["fr", "Français"], ["es", "Español"], ["de", "Deutsch"], ["it", "Italiano"], ["pt", "Português"], ["nl", "Nederlands"], ["ar", "العربية"], ["hi", "हिन्दी"], ["ja", "日本語"], ["zh", "中文"]];
@@ -15,6 +16,8 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [capturing, setCapturing] = useState<"dictation" | "command" | null>(null);
+  const [shortcutError, setShortcutError] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
   const [syncAuthPassword, setSyncAuthPassword] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
@@ -23,6 +26,27 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
   const provider = useMemo(() => providers.find((item) => item.id === settings.provider), [providers, settings.provider]);
   const patch = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => { setSettings((current) => ({ ...current, [key]: value })); setDirty(true); };
   const save = async () => { setSaving(true); setSaveError(""); try { await checkHotkey(settings.hotkey.combo); await saveSettings(settings); setDirty(false); await onSaved(); } catch (error) { setSaveError(String(error)); } finally { setSaving(false); } };
+  // Same recorder the onboarding uses: press the real key combination instead of typing
+  // shortcut syntax by hand. Availability is checked immediately so a conflicting combination
+  // is rejected here rather than silently failing on save.
+  const captureShortcut = async (target: "dictation" | "command", event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (capturing !== target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const captured = shortcutFromKeyEvent(event.nativeEvent);
+    if (captured.cancelled) { setCapturing(null); setShortcutError(""); return; }
+    if (captured.error) { setShortcutError(captured.error); return; }
+    if (!captured.combo) return;
+    setCapturing(null);
+    setShortcutError("");
+    try {
+      await checkHotkey(captured.combo);
+      if (target === "dictation") patch("hotkey", { ...settings.hotkey, combo: captured.combo });
+      else patch("commandHotkey", captured.combo);
+    } catch (error) {
+      setShortcutError(String(error));
+    }
+  };
   const checkKey = async () => { setKeyState("checking"); setKeyError(""); try { await validateApiKey(settings.provider, key || undefined); if (key) await saveApiKey(settings.provider, key); setKey(""); setKeyState("valid"); } catch (error) { setKeyError(String(error)); setKeyState("error"); } };
   const syncNow = async (direction: "push" | "pull") => { setSyncStatus("Syncing…"); try { await runSync(direction, syncPassword, syncAuthPassword); setSyncStatus(direction === "push" ? "Encrypted data uploaded." : "Encrypted data restored."); if (direction === "pull") await onSaved(); } catch (error) { setSyncStatus(String(error)); } };
   const addPlugin = async () => { setPluginStatus(""); try { await saveProvider({ id: plugin.id, name: plugin.name, baseUrl: plugin.baseUrl, transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions", models: [plugin.model], supportsRealtime: false, requiresApiKey: true }); setPlugin({ id: "", name: "", baseUrl: "", model: "" }); setPluginStatus("Provider added."); await onSaved(); } catch (error) { setPluginStatus(String(error)); } };
@@ -53,9 +77,10 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
       </Card>
 
       <Card><div className="setting-heading"><KeyRound /><div><h2>Shortcuts & insertion</h2><p>Control Dictum from anywhere.</p></div></div><div className="form-grid">
-        <Field label="Dictation shortcut"><Input value={settings.hotkey.combo} onChange={(e) => patch("hotkey", { ...settings.hotkey, combo: e.target.value })} /></Field>
-        <Field label="Shortcut behavior"><Select value={settings.hotkey.mode} onChange={(e) => patch("hotkey", { ...settings.hotkey, mode: e.target.value as AppSettings["hotkey"]["mode"] })}><option value="hold">Hold to talk</option><option value="toggle">Press to start / stop</option><option value="doubleTap">Double-tap right Shift</option></Select></Field>
-        <Field label="Command mode shortcut"><Input value={settings.commandHotkey} onChange={(e) => patch("commandHotkey", e.target.value)} /></Field>
+        <Field label="Dictation shortcut" hint={settings.hotkey.mode === "doubleTap" ? "Not used while “Double-tap right Shift” is selected" : "Click Record, then press the keys you want"}><div className="shortcut-capture-row"><output className="shortcut-display">{settings.hotkey.mode === "doubleTap" ? "Right Shift twice" : displayShortcut(settings.hotkey.combo)}</output><button type="button" className={`shortcut-record ${capturing === "dictation" ? "capturing" : ""}`} disabled={settings.hotkey.mode === "doubleTap"} onClick={() => { setCapturing("dictation"); setShortcutError(""); }} onKeyDown={(e) => void captureShortcut("dictation", e)}>{capturing === "dictation" ? "Press keys…" : "Record"}</button></div></Field>
+        <Field label="Shortcut behavior"><Select value={settings.hotkey.mode} onChange={(e) => { patch("hotkey", { ...settings.hotkey, mode: e.target.value as AppSettings["hotkey"]["mode"] }); setCapturing(null); }}><option value="hold">Hold to talk</option><option value="toggle">Press to start / stop</option><option value="doubleTap">Double-tap right Shift</option></Select></Field>
+        <Field label="Command mode shortcut" hint="Click Record, then press the keys you want"><div className="shortcut-capture-row"><output className="shortcut-display">{displayShortcut(settings.commandHotkey)}</output><button type="button" className={`shortcut-record ${capturing === "command" ? "capturing" : ""}`} onClick={() => { setCapturing("command"); setShortcutError(""); }} onKeyDown={(e) => void captureShortcut("command", e)}>{capturing === "command" ? "Press keys…" : "Record"}</button></div></Field>
+        {shortcutError ? <p className="field-error">{shortcutError}</p> : null}
         <Field label="Text insertion"><Select value={settings.injection} onChange={(e) => patch("injection", e.target.value as AppSettings["injection"])}><option value="clipboard">Clipboard paste (recommended)</option><option value="keystroke">Synthetic keystrokes</option></Select></Field>
       </div></Card>
 
@@ -66,7 +91,7 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
         <Toggle checked={settings.autostart} onChange={(value) => patch("autostart", value)} label="Launch on startup" description="Start Dictum automatically when you turn on your PC and keep it ready in the system tray." />
       </Card>
 
-      <Card><div className="setting-heading"><LoaderCircle /><div><h2>Realtime (advanced)</h2><p>Stream partial transcripts from Mistral or a local vLLM server.</p></div></div><Toggle checked={settings.realtime.enabled} onChange={(enabled) => patch("realtime", { ...settings.realtime, enabled })} label="Realtime transcription" description="Experimental sub-200 ms live text; uses a separate streaming model." />{settings.realtime.enabled && settings.hotkey.mode === "hold" ? <p className="field-help realtime-hold-warning">Live text can’t be typed into your app while “Hold to talk” keeps {settings.hotkey.combo.replace("CommandOrControl", "Ctrl")} pressed — held modifiers turn each character into a shortcut. Text is previewed here in the recording HUD and inserted when you finish. For live typing at the cursor, switch <strong>Shortcut behavior</strong> to “Press to start / stop” or “Double-tap right Shift”.</p> : null}<div className="nested-settings form-grid"><Field label="Realtime provider"><Select disabled={!settings.realtime.enabled} value={settings.realtime.provider} onChange={(e) => { const provider = e.target.value; patch("realtime", { ...settings.realtime, provider, model: provider === "local" ? "mistralai/Voxtral-Mini-4B-Realtime-2602" : provider === "mistral" ? "voxtral-mini-transcribe-realtime-2602" : settings.realtime.model }); }}>{providers.filter((item) => item.supportsRealtime).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Realtime model"><Input disabled={!settings.realtime.enabled} value={settings.realtime.model} onChange={(e) => patch("realtime", { ...settings.realtime, model: e.target.value })} /></Field></div></Card>
+      <Card><div className="setting-heading"><LoaderCircle /><div><h2>Realtime (advanced)</h2><p>Stream partial transcripts from Mistral or a local vLLM server.</p></div></div><Toggle checked={settings.realtime.enabled} onChange={(enabled) => patch("realtime", { ...settings.realtime, enabled })} label="Realtime transcription" description="Experimental sub-200 ms live text; uses a separate streaming model." />{settings.realtime.enabled && settings.hotkey.mode === "hold" ? <div className="realtime-hold-warning"><p>Live text can’t be typed into your app while “Hold to talk” keeps {displayShortcut(settings.hotkey.combo)} pressed — the held modifiers turn each character into a shortcut. Right now the text is previewed in the recording HUD and inserted once you finish (which also keeps AI formatting).</p><Button variant="secondary" onClick={() => patch("hotkey", { ...settings.hotkey, mode: "toggle" })}>Switch to “Press to start / stop”</Button></div> : null}<div className="nested-settings form-grid"><Field label="Realtime provider"><Select disabled={!settings.realtime.enabled} value={settings.realtime.provider} onChange={(e) => { const provider = e.target.value; patch("realtime", { ...settings.realtime, provider, model: provider === "local" ? "mistralai/Voxtral-Mini-4B-Realtime-2602" : provider === "mistral" ? "voxtral-mini-transcribe-realtime-2602" : settings.realtime.model }); }}>{providers.filter((item) => item.supportsRealtime).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Realtime model"><Input disabled={!settings.realtime.enabled} value={settings.realtime.model} onChange={(e) => patch("realtime", { ...settings.realtime, model: e.target.value })} /></Field></div></Card>
 
       <Card><div className="setting-heading"><ShieldCheck /><div><h2>Encrypted self-hosted sync</h2><p>Sync settings, dictionary, and snippets to your own HTTP/WebDAV endpoint.</p></div></div><Toggle checked={settings.sync.enabled} onChange={(enabled) => patch("sync", { ...settings.sync, enabled })} label="Enable sync" description="Your passphrase encrypts data on this device and is never uploaded." /><div className="form-grid nested-settings"><Field label="Endpoint"><Input disabled={!settings.sync.enabled} placeholder="https://cloud.example/dictum.enc" value={settings.sync.endpoint} onChange={(e) => patch("sync", { ...settings.sync, endpoint: e.target.value })} /></Field><Field label="Username" hint="Only if your endpoint requires login"><Input disabled={!settings.sync.enabled} value={settings.sync.username} onChange={(e) => patch("sync", { ...settings.sync, username: e.target.value })} /></Field><Field label="Server password" hint="Login credential for your endpoint; separate from the passphrase"><Input disabled={!settings.sync.enabled} type="password" value={syncAuthPassword} onChange={(e) => setSyncAuthPassword(e.target.value)} /></Field><Field label="Encryption passphrase" hint="Encrypts data locally; never leaves this device"><Input disabled={!settings.sync.enabled} type="password" value={syncPassword} onChange={(e) => setSyncPassword(e.target.value)} /></Field><div className="sync-buttons"><Button variant="secondary" disabled={!settings.sync.enabled || syncPassword.length < 10} onClick={() => void syncNow("pull")}>Pull</Button><Button variant="secondary" disabled={!settings.sync.enabled || syncPassword.length < 10} onClick={() => void syncNow("push")}>Push</Button></div>{syncStatus ? <span className="field-help">{syncStatus}</span> : null}</div></Card>
 

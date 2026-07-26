@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Mutex,
 };
 use std::time::{Duration, Instant};
@@ -37,6 +37,11 @@ pub struct AppState {
     /// instead of inserted as text. Synthetically releasing a key the user is physically
     /// holding down doesn't work, so live typing is simply not possible in that mode.
     pub realtime_live_typing: AtomicBool,
+    /// Incremented once per dictation. A realtime session that is still draining when the next
+    /// dictation begins would otherwise keep typing into it and overwrite the newer session's
+    /// bookkeeping; each session captures the epoch it belongs to and goes silent once it no
+    /// longer matches.
+    pub dictation_epoch: AtomicU64,
     pub operation: Mutex<CancellationToken>,
 }
 
@@ -55,6 +60,7 @@ impl AppState {
             realtime_done: Mutex::new(None),
             realtime_live: Mutex::new(None),
             realtime_live_typing: AtomicBool::new(false),
+            dictation_epoch: AtomicU64::new(0),
             operation: Mutex::new(CancellationToken::new()),
         }
     }
@@ -266,6 +272,7 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
     state
         .realtime_live_typing
         .store(live_typing, Ordering::SeqCst);
+    let epoch = state.dictation_epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let live_tx = if settings.realtime.enabled {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
@@ -279,8 +286,20 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
         let key = keychain::get(&provider)?;
         let model = settings.realtime.model.clone();
         let realtime_app = app.clone();
+        let cancellation = state.operation.lock().unwrap().clone();
         tauri::async_runtime::spawn(async move {
-            run_realtime(realtime_app, provider, endpoint, model, key, rx, done_tx).await;
+            run_realtime(
+                realtime_app,
+                provider,
+                endpoint,
+                model,
+                key,
+                rx,
+                done_tx,
+                epoch,
+                cancellation,
+            )
+            .await;
         });
         Some(tx)
     } else {
@@ -419,6 +438,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             cost = capture.duration_ms as f64 / 60_000.0 * 0.006;
         }
     }
+    let used_realtime = !raw_parts.is_empty();
     let chunks = if raw_parts.is_empty() {
         capture.chunks.as_slice()
     } else {
@@ -502,25 +522,36 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         .unwrap()
         .clone()
         .unwrap_or_else(focus::current);
-    // Realtime already typed the transcript at the cursor as it was spoken. Its raw text is the
-    // finished result: don't re-insert it, and don't run AI formatting - formatting rewrites the
-    // whole thing, which can't be applied word-by-word live and (deleting + retyping everything
-    // at the end) is exactly what corrupted the on-screen text before. AI formatting and voice
-    // snippets are intentionally unavailable in realtime mode; the live raw transcript stands.
-    if state.realtime_live.lock().unwrap().take().is_some() {
-        *state.last_inserted.lock().unwrap() = Some(raw.clone());
-        if settings.history.enabled {
-            state.store.insert_history(
-                &raw,
-                &raw,
-                Some(&target.name),
-                capture.duration_ms as i64,
-                cost,
-                &history_model,
-            )?;
-            state.store.purge_history(settings.history.retention_days)?;
+    let live_typed = state.realtime_live.lock().unwrap().take();
+    match (&live_typed, used_realtime) {
+        // Realtime already typed its transcript at the cursor as it was spoken, and that
+        // transcript is what `raw` holds. Don't re-insert it, and don't run AI formatting -
+        // formatting rewrites the whole sentence, which can't be applied word-by-word live and
+        // (deleting + retyping everything at the end) is exactly what corrupted the on-screen
+        // text before. AI formatting and snippets are intentionally unavailable on this path.
+        (Some(_), true) => {
+            *state.last_inserted.lock().unwrap() = Some(raw.clone());
+            if settings.history.enabled {
+                state.store.insert_history(
+                    &raw,
+                    &raw,
+                    Some(&target.name),
+                    capture.duration_ms as i64,
+                    cost,
+                    &history_model,
+                )?;
+                state.store.purge_history(settings.history.retention_days)?;
+            }
+            return Ok(raw);
         }
-        return Ok(raw);
+        // Realtime typed a partial transcript live, then failed before finishing, so `raw` came
+        // from batch transcription instead and doesn't match what's on screen. Remove the stale
+        // partial text and let the normal path insert the complete result, rather than leaving
+        // the document short while history records the full sentence.
+        (Some(live), false) => {
+            let _ = inject::live_update(live, "");
+        }
+        _ => {}
     }
     let snippets: Vec<_> = state
         .store
@@ -659,6 +690,7 @@ fn truncate_reason(reason: &str) -> String {
 /// instead of quietly falling back to batch transcription with no explanation. A mid-stream
 /// drop is retried a bounded number of times, carrying the transcript accumulated so far
 /// forward as a prefix so a reconnect doesn't lose what was already recognized.
+#[allow(clippy::too_many_arguments)]
 async fn run_realtime(
     app: AppHandle,
     provider: String,
@@ -667,8 +699,21 @@ async fn run_realtime(
     key: Option<String>,
     mut audio_rx: tokio::sync::mpsc::Receiver<Vec<i16>>,
     done: tokio::sync::oneshot::Sender<()>,
+    epoch: u64,
+    cancellation: CancellationToken,
 ) {
     use crate::transcribe::realtime::{RealtimeDialect, RealtimeEvent, RealtimeSession};
+    // This session may only touch shared state or the user's document while it is still the
+    // current dictation and hasn't been cancelled - otherwise a late delta could type into a
+    // newer dictation, or re-insert text that Escape just removed.
+    let owns_dictation = |app: &AppHandle| {
+        !cancellation.is_cancelled()
+            && app
+                .state::<AppState>()
+                .dictation_epoch
+                .load(Ordering::SeqCst)
+                == epoch
+    };
     let dialect = RealtimeDialect::for_provider(&provider);
     let mut transcript = String::new();
     let mut finished = false;
@@ -710,6 +755,7 @@ async fn run_realtime(
                 event = events.recv() => match event {
                     Some(RealtimeEvent::Partial(text)) => {
                         transcript = format!("{prefix}{text}");
+                        if !owns_dictation(&app) { return; }
                         // Type the live transcript straight into the focused app when the
                         // shortcut mode allows it; otherwise just preview it in the HUD. Only
                         // ever *appends*: if the new transcript isn't a pure extension of
@@ -732,6 +778,7 @@ async fn run_realtime(
                     }
                     Some(RealtimeEvent::Final(text)) => {
                         transcript = format!("{prefix}{text}");
+                        if !owns_dictation(&app) { return; }
                         // Same append-only rule as partials - never a backspace-based fixup in
                         // the live path. Since Voxtral's deltas are incremental (monotonic),
                         // the final text is just the last append, so this types the remaining
