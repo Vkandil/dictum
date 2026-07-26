@@ -30,6 +30,13 @@ pub struct AppState {
     pub realtime_final: Mutex<Option<String>>,
     pub realtime_done: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
     pub realtime_live: Mutex<Option<String>>,
+    /// Whether this dictation may type realtime text straight into the focused app. False in
+    /// hold-to-talk mode: the user is physically holding the shortcut's modifiers (e.g.
+    /// Ctrl+Shift) for as long as they speak, so every synthetic character we send arrives as
+    /// Ctrl+Shift+<key> - swallowed as a shortcut or mangled into stray accented characters
+    /// instead of inserted as text. Synthetically releasing a key the user is physically
+    /// holding down doesn't work, so live typing is simply not possible in that mode.
+    pub realtime_live_typing: AtomicBool,
     pub operation: Mutex<CancellationToken>,
 }
 
@@ -47,6 +54,7 @@ impl AppState {
             realtime_final: Mutex::new(None),
             realtime_done: Mutex::new(None),
             realtime_live: Mutex::new(None),
+            realtime_live_typing: AtomicBool::new(false),
             operation: Mutex::new(CancellationToken::new()),
         }
     }
@@ -250,6 +258,14 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
     *state.realtime_final.lock().unwrap() = None;
     *state.realtime_done.lock().unwrap() = None;
     *state.realtime_live.lock().unwrap() = None;
+    // Live typing needs a shortcut mode that leaves no key held while the user speaks; in
+    // hold-to-talk the held Ctrl/Shift turn every character we type into a shortcut. There,
+    // fall back to previewing in the HUD and inserting once at the end (which also keeps AI
+    // formatting, unavailable on the live path).
+    let live_typing = !command_mode && settings.hotkey.mode != "hold";
+    state
+        .realtime_live_typing
+        .store(live_typing, Ordering::SeqCst);
     let live_tx = if settings.realtime.enabled {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
@@ -694,15 +710,13 @@ async fn run_realtime(
                 event = events.recv() => match event {
                     Some(RealtimeEvent::Partial(text)) => {
                         transcript = format!("{prefix}{text}");
-                        // Type the live transcript directly at the cursor instead of only
-                        // showing it in the HUD - skipped in command mode, where the spoken
-                        // words are an instruction, not literal text to insert. Only ever
-                        // *appends*: if the new transcript isn't a pure extension of what's
-                        // already on screen (Voxtral revising a word), leave the screen as-is
-                        // rather than risk a live Backspace-based fixup racing the target app -
-                        // the Final handler below always does one clean reconciliation pass.
+                        // Type the live transcript straight into the focused app when the
+                        // shortcut mode allows it; otherwise just preview it in the HUD. Only
+                        // ever *appends*: if the new transcript isn't a pure extension of
+                        // what's on screen (Voxtral revising a word), leave it be rather than
+                        // risk a Backspace-based fixup racing the target app.
                         let state = app.state::<AppState>();
-                        if !state.command_mode.load(Ordering::SeqCst) {
+                        if state.realtime_live_typing.load(Ordering::SeqCst) {
                             let mut live = state.realtime_live.lock().unwrap();
                             let previous = live.clone().unwrap_or_default();
                             if let Some(suffix) = transcript.strip_prefix(previous.as_str()) {
@@ -712,6 +726,8 @@ async fn run_realtime(
                                     let _ = inject::type_only(suffix);
                                 }
                             }
+                        } else if !state.command_mode.load(Ordering::SeqCst) {
+                            emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&transcript), error_code: None });
                         }
                     }
                     Some(RealtimeEvent::Final(text)) => {
@@ -721,7 +737,7 @@ async fn run_realtime(
                         // the final text is just the last append, so this types the remaining
                         // suffix and nothing is ever deleted mid-stream.
                         let state = app.state::<AppState>();
-                        if !state.command_mode.load(Ordering::SeqCst) {
+                        if state.realtime_live_typing.load(Ordering::SeqCst) {
                             let mut live = state.realtime_live.lock().unwrap();
                             let previous = live.clone().unwrap_or_default();
                             if let Some(suffix) = transcript.strip_prefix(previous.as_str()) {
