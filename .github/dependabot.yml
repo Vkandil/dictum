@@ -38,3 +38,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # Action majors are worth taking (runtime deprecations force them) and CI proves them,
+    # with one exception: tauri-action builds the release itself, so CI never exercises it.
+    # A major bump there has to be migrated and verified against a real tag deliberately.
+    ignore:
+      - dependency-name: tauri-apps/tauri-action
+        update-types: [version-update:semver-major]
