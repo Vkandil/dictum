@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-2563EB" />
+  <img alt="Version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-2563EB" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB" /></a>
@@ -43,10 +43,11 @@ Press a global shortcut in any Windows application, speak, and Dictum:
 
 1. Captures microphone audio in memory.
 2. Converts it to provider-compatible 16 kHz mono audio.
-3. Splits long recordings into complete 25-second parts.
-4. Transcribes every part through your chosen provider.
-5. Optionally removes fillers, corrects grammar, and adapts tone.
-6. Combines every part in order and pastes the final text at your cursor.
+3. Transcribes it through your chosen provider. Long recordings are split at natural pauses and transcribed in parallel, then reassembled — you never see the seams.
+4. Optionally removes fillers, corrects grammar, and adapts tone.
+5. Pastes the finished text at your cursor.
+
+Or switch to **Live mode**, where your words appear as you speak them, straight into whatever you're typing in — no length limit, no waiting.
 
 Dictum itself has no subscription fee. Hosted providers may charge for inference. You bring your own provider key and keep control of the account.
 
@@ -57,8 +58,9 @@ Dictum itself has no subscription fee. Hosted providers may charge for inference
 - System-wide Windows shortcuts
 - Hold-to-talk, press-to-toggle, and double-tap Right Shift modes
 - Live microphone meter and non-focusable recording HUD
-- Automatic silence trimming and optional Whisper mode
-- Recordings longer than 30 seconds with visible part-by-part progress
+- Automatic silence trimming and optional boost for quiet speech
+- Live mode: words appear at your cursor as you speak, with no length limit
+- Long recordings split at natural pauses and transcribed in parallel
 - Automatic language detection or an explicit language hint
 - Unicode-safe clipboard insertion with synthetic typing fallback
 - Escape-to-cancel without inserting text
@@ -437,7 +439,7 @@ See [docs/windows-release-checklist.md](docs/windows-release-checklist.md) for t
 <details>
 <summary><strong>The microphone meter does not move</strong></summary>
 
-Select the intended microphone and click **Test access**. In Windows Settings, open **Privacy & security → Microphone** and enable microphone access for desktop applications. Close other software that may be holding the device exclusively.
+Select the intended microphone and click **Test microphone**, then speak: the meter should move. In Windows Settings, open **Privacy & security → Microphone** and enable microphone access for desktop applications. Close other software that may be holding the device exclusively.
 
 </details>
 
@@ -449,9 +451,9 @@ Speak for several seconds while watching the meter. Move closer to the microphon
 </details>
 
 <details>
-<summary><strong>A recording longer than 30 seconds is incomplete</strong></summary>
+<summary><strong>A long recording is incomplete</strong></summary>
 
-Confirm that you are running Dictum 1.0.0 or newer. During transcription, the HUD should show every part in order. Wait until all parts finish. If a hosted provider fails on a specific part, check the network and provider status, then include the part number and terminal error in a bug report without including private transcript text.
+Long recordings are split internally and transcribed in parallel, so wait for the HUD to finish rather than assuming it stalled. If a hosted provider fails, check your network and the provider's status page. In Live mode there is no splitting at all, so it is worth trying if long dictations give you trouble. When reporting a bug, include the error shown in the HUD without any private transcript text.
 
 </details>
 
@@ -506,7 +508,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.0.0 and the codebase is configured for a final Windows release. Before publishing a GitHub tag, the maintainer must configure the Tauri updater secrets (Windows Authenticode signing is optional) and complete [the Windows release checklist](docs/windows-release-checklist.md).
+Dictum is version 1.2.0. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). Windows Authenticode signing is optional and currently unconfigured, so installers are unsigned and SmartScreen warns on first run — verify the published SHA-256 checksums if you want assurance the download is intact.
 
 ## License and acknowledgements
 
