@@ -160,6 +160,17 @@ pub struct ProviderManifest {
     pub requires_api_key: bool,
 }
 
+/// Repairs settings combinations that are no longer valid, so an existing install (or a synced
+/// payload) written before a rule existed doesn't leave the user stuck unable to save. Realtime
+/// live typing can't work in hold-to-talk - the held modifiers turn typed characters into
+/// shortcuts - so that pairing resolves in favour of a shortcut behavior live mode can use.
+fn normalize(mut settings: AppSettings) -> AppSettings {
+    if settings.realtime.enabled && settings.hotkey.mode == "hold" {
+        settings.hotkey.mode = "toggle".into();
+    }
+    settings
+}
+
 pub fn builtin_providers() -> Vec<ProviderManifest> {
     vec![
         ProviderManifest {
@@ -270,13 +281,14 @@ impl Store {
                 row.get(0)
             })
             .optional()?;
-        if let Some(raw) = raw {
-            Ok(serde_json::from_str(&raw).unwrap_or_default())
+        let settings: AppSettings = if let Some(raw) = raw {
+            serde_json::from_str(&raw).unwrap_or_default()
         } else if self.config_path.exists() {
-            Ok(serde_json::from_slice(&fs::read(&self.config_path)?).unwrap_or_default())
+            serde_json::from_slice(&fs::read(&self.config_path)?).unwrap_or_default()
         } else {
-            Ok(AppSettings::default())
-        }
+            AppSettings::default()
+        };
+        Ok(normalize(settings))
     }
 
     pub fn save_settings(&self, settings: &AppSettings) -> Result<()> {
@@ -501,6 +513,15 @@ impl Store {
                 !settings.realtime.model.trim().is_empty(),
                 "realtime model is required"
             );
+            // Live typing sends synthetic keystrokes while the user speaks. In hold-to-talk the
+            // user is physically holding the shortcut's modifiers the whole time, so every
+            // character would arrive as Ctrl/Shift+<key> and be swallowed or mangled. Rejected
+            // here, not just hidden in the UI, so an edited config file or a synced settings
+            // payload can't reintroduce the broken combination.
+            anyhow::ensure!(
+                settings.hotkey.mode != "hold",
+                "live transcription needs a shortcut that isn't held down while you speak; choose press to start / stop, or double-tap right Shift"
+            );
         }
         if provider.id == "local" || settings.realtime.provider == "local" {
             let url =
@@ -589,6 +610,65 @@ mod tests {
         assert!(store.save_settings(&audio).is_err());
         assert!(store.save_provider(&builtin_providers()[0]).is_err());
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn rejects_realtime_combined_with_hold_to_talk() {
+        let (store, directory) = test_store();
+        let base = AppSettings {
+            realtime: RealtimeSettings {
+                enabled: true,
+                provider: "mistral".into(),
+                model: "voxtral-mini-transcribe-realtime-2602".into(),
+            },
+            ..AppSettings::default()
+        };
+        let held = AppSettings {
+            hotkey: HotkeySettings {
+                mode: "hold".into(),
+                ..base.hotkey.clone()
+            },
+            ..base.clone()
+        };
+        assert!(store.save_settings(&held).is_err());
+        for mode in ["toggle", "doubleTap"] {
+            let allowed = AppSettings {
+                hotkey: HotkeySettings {
+                    mode: mode.into(),
+                    ..base.hotkey.clone()
+                },
+                ..base.clone()
+            };
+            assert!(
+                store.save_settings(&allowed).is_ok(),
+                "{mode} should be allowed"
+            );
+        }
+        // Hold-to-talk stays valid whenever realtime is off.
+        assert!(store.save_settings(&AppSettings::default()).is_ok());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn repairs_an_existing_config_that_pairs_realtime_with_hold() {
+        assert_eq!(
+            normalize(AppSettings {
+                realtime: RealtimeSettings {
+                    enabled: true,
+                    ..AppSettings::default().realtime
+                },
+                hotkey: HotkeySettings {
+                    mode: "hold".into(),
+                    ..AppSettings::default().hotkey
+                },
+                ..AppSettings::default()
+            })
+            .hotkey
+            .mode,
+            "toggle"
+        );
+        // Hold-to-talk is left alone when realtime is off.
+        assert_eq!(normalize(AppSettings::default()).hotkey.mode, "hold");
     }
 
     #[test]
