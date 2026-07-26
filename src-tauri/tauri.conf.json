@@ -40,7 +40,7 @@
         "shadow": false
       }
     ],
-    "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.openrouter.ai https://api.mistral.ai http://localhost:* ws://localhost:* wss://api.mistral.ai; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:" }
+    "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'none'" }
   },
   "bundle": {
     "active": true,
