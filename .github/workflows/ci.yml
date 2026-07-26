@@ -37,6 +37,9 @@ jobs:
       # Production dependencies only: a dev-only advisory shouldn't block a release, and
       # nothing from devDependencies ships in the installer.
       - run: npm audit --omit=dev --audit-level=high
-      - uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-audit
+      # The Rust lockfile lives under src-tauri/, not the repository root, so it has to be
+      # named explicitly. Unmaintained/unsound advisories are reported but don't fail the
+      # build; only actual vulnerabilities do.
+      - run: cargo audit --file src-tauri/Cargo.lock

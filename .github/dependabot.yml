@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Major bumps are breaking changes that need a human to port the code, and Dependabot
+    # opening one failing PR per crate is just noise. Security advisories are still delivered
+    # regardless of this setting.
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
     groups:
       # One PR per ecosystem for routine bumps keeps the noise down; security updates still
       # arrive as their own PRs.
@@ -17,6 +23,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Major bumps are breaking changes that need a human to port the code, and Dependabot
+    # opening one failing PR per crate is just noise. Security advisories are still delivered
+    # regardless of this setting.
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
     groups:
       npm-dependencies:
         patterns: ["*"]
