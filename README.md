@@ -132,7 +132,7 @@ You can instead choose **Use a local provider** and configure an OpenAI-compatib
 ### 2. Test the microphone
 
 1. Select the same microphone that works in your other Windows applications.
-2. Click **Test access**.
+2. Click **Test microphone** and speak. The meter should move; if it stays flat, try another device.
 3. If Windows blocks access, enable:
    - **Microphone access**
    - **Let apps access your microphone**
@@ -169,27 +169,32 @@ Press `Escape` while recording to cancel. Dictum inserts nothing after cancellat
 
 After transcription, Dictum pastes at the active cursor using `Ctrl+V`. It restores the previous text or image clipboard content when possible. If clipboard insertion fails, it falls back to direct Unicode typing.
 
+### Live mode
+
+Instead of waiting for the transcript when you stop talking, Dictum can type your words at the cursor as you speak them. Choose it under **Settings → How your text appears → Live**.
+
+| | Polished (default) | Live |
+| --- | --- | --- |
+| When text appears | When you stop speaking | While you speak |
+| AI clean-up, snippets, dictionary | Yes | No |
+| Length limit | Split internally, no visible limit | None at all |
+| Shortcut behavior | Any | Press-to-toggle or double-tap only |
+
+Live mode streams audio over a WebSocket, so it needs a provider that supports it: a Mistral key, or your own local server. It cannot be combined with hold-to-talk — holding the shortcut keeps `Ctrl`/`Shift` pressed, and every character Dictum typed would arrive as a keyboard shortcut instead of text. Dictum enforces this in the interface and in settings validation, and moves you to press-to-toggle if you switch modes.
+
+Because the text is inserted as it is recognised, there is no opportunity to rewrite the whole sentence afterwards — which is why AI formatting, snippets, and the dictionary are unavailable in Live mode. The Snippets and Dictionary pages say so while it is on.
+
 ### Long dictation
 
-Dictum 1.0 has no 30-second recording cutoff. Long recordings are divided into 25-second provider-safe WAV parts without dropping samples. The HUD reports progress such as:
-
-```text
-Transcribing part 1 of 3
-Transcribing part 2 of 3
-Transcribing part 3 of 3
-```
-
-Each provider request may run for up to 90 seconds and retains the normal retry behavior. Completed part transcripts are combined in their original order before formatting and insertion.
+There is no recording length limit. In Polished mode, long recordings are split internally into provider-sized parts, cut at a natural pause rather than mid-word, transcribed in parallel, and reassembled in order. Nothing about the split is surfaced to you. In Live mode there is no splitting at all.
 
 For the best result:
 
-- Keep speaking at a consistent volume.
-- Natural short pauses are fine.
-- Wait for every part to finish before starting another dictation.
+- Keep speaking at a consistent volume; natural pauses are fine and are used as cut points.
 - Use a stable internet connection for hosted providers.
 - Use the History page to confirm the complete stored transcript after insertion.
 
-The automated suite includes a 75-second regression that decodes all generated WAV parts and verifies that every captured sample is retained.
+The automated suite includes a 75-second regression that decodes every generated WAV part and verifies that no captured sample is lost, plus a test that a chunk boundary lands on a pause instead of inside a word.
 
 ### Transform the previous dictation
 
@@ -213,10 +218,12 @@ The answer is inserted at the cursor without replacing the previous dictation.
 
 ### Dictionary and snippets
 
-- Add names, acronyms, products, and specialized vocabulary under **Dictionary**.
-- Add reusable exact phrases under **Snippets**.
+- Add names, acronyms, products, and specialized vocabulary under **Dictionary**. They are sent to the transcription service as context so it spells them your way.
+- Add reusable exact phrases under **Snippets**. Say the trigger anywhere in a sentence and it expands in place — “email me at my email” inserts the address mid-phrase.
 - Example: `my email` → `name@example.com`.
-- Edit a transcript from History to let Dictum learn corrected vocabulary.
+- Edit a transcript from History to let Dictum learn corrected vocabulary. Only words that actually replace a misheard one are learned, so rephrasing a sentence doesn't fill your dictionary with noise.
+
+Both are unavailable in Live mode; see [Live mode](#live-mode).
 
 ## Providers
 
@@ -293,13 +300,16 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and supported-version
 flowchart LR
     A[Windows global shortcut] --> B[In-memory microphone capture]
     B --> C[16 kHz mono and silence trim]
-    C --> D[Complete 25-second WAV parts]
-    D --> E[Selected transcription provider]
+    C --> D{Mode}
+    D -- Polished --> E[Split at a pause, transcribed in parallel]
     E --> F[Ordered transcript merge]
     F --> G[Snippets and optional AI formatting]
     G --> H[Windows clipboard or Unicode typing]
+    D -- Live --> K[Streamed over WebSocket]
+    K --> H
     H --> I[Focused Windows application]
     G -. optional .-> J[Local SQLite history]
+    K -. optional .-> J
 ```
 
 The React interface communicates with a Rust backend through Tauri commands and events. Rust owns microphone capture, global shortcuts, Windows Credential Manager access, provider requests, SQLite, text insertion, the tray, updater, and HUD.
@@ -418,6 +428,8 @@ $env:DICTUM_DATA_DIR = Join-Path $env:TEMP 'dictum-cli-test'
 | `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | Check Rust formatting. |
 | `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` | Run strict Rust linting. |
 | `cargo test --manifest-path src-tauri/Cargo.toml --all-targets` | Run all Rust and long-audio tests. |
+| `cargo audit --file src-tauri/Cargo.lock` | Check Rust dependencies for advisories. |
+| `npm audit --omit=dev` | Check shipped frontend dependencies for advisories. |
 
 Run every release gate from PowerShell:
 
@@ -428,6 +440,8 @@ npm test
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+cargo audit --file src-tauri/Cargo.lock
+npm audit --omit=dev --audit-level=high
 ```
 
 Close the running development app before the Rust tests; Windows otherwise keeps `dictum.exe` locked.
