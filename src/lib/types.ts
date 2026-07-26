@@ -71,7 +71,8 @@ export interface ProviderManifest {
 
 export interface BootstrapData {
   settings: AppSettings;
-  hasApiKey: Record<string, boolean>;
+  /** Masked preview per provider that has a saved key, e.g. `{ mistral: "••••••••a1b2" }`. */
+  apiKeyHints: Record<string, string>;
   devices: AudioDevice[];
   dictionary: DictionaryTerm[];
   snippets: Snippet[];

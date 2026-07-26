@@ -29,7 +29,7 @@ export const defaultSettings: AppSettings = {
 
 export const browserBootstrap: BootstrapData = {
   settings: defaultSettings,
-  hasApiKey: {},
+  apiKeyHints: {},
   devices: [{ id: "default", name: "Default microphone", isDefault: true }],
   dictionary: [],
   snippets: [],

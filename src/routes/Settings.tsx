@@ -12,7 +12,7 @@ const CUSTOM_MODEL = "__custom__";
  *  transcription can work with, since held modifiers turn typed characters into shortcuts. */
 const LIVE_SAFE_MODES = ["toggle", "doubleTap"];
 
-export default function Settings({ initial, providers, devices, onSaved }: { initial: AppSettings; providers: ProviderManifest[]; devices: AudioDevice[]; onSaved: () => Promise<void> }) {
+export default function Settings({ initial, providers, devices, apiKeyHints, onSaved }: { initial: AppSettings; providers: ProviderManifest[]; devices: AudioDevice[]; apiKeyHints: Record<string, string>; onSaved: () => Promise<void> }) {
   const [settings, setSettings] = useState(initial);
   const [key, setKey] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -23,6 +23,7 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
   const [dirty, setDirty] = useState(false);
   const [capturing, setCapturing] = useState<"dictation" | "command" | null>(null);
   const [shortcutError, setShortcutError] = useState("");
+  const [replacingKey, setReplacingKey] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [syncPassword, setSyncPassword] = useState("");
   const [syncAuthPassword, setSyncAuthPassword] = useState("");
@@ -33,6 +34,10 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
   const provider = useMemo(() => providers.find((item) => item.id === settings.provider), [providers, settings.provider]);
   const realtimeProviders = useMemo(() => providers.filter((item) => item.supportsRealtime), [providers]);
   const live = settings.realtime.enabled;
+  const savedKey = apiKeyHints[settings.provider];
+  // Keys belonging to services you're not currently using still matter - they're why switching
+  // service can just work - so surface them instead of leaving the user wondering.
+  const otherKeys = useMemo(() => Object.entries(apiKeyHints).filter(([id]) => id !== settings.provider), [apiKeyHints, settings.provider]);
 
   const patch = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => { setSettings((current) => ({ ...current, [key]: value })); setDirty(true); };
   const save = async () => { setSaving(true); setSaveError(""); try { await checkHotkey(settings.hotkey.combo); await saveSettings(settings); setDirty(false); await onSaved(); } catch (error) { setSaveError(String(error)); } finally { setSaving(false); } };
@@ -72,7 +77,7 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
     }
   };
 
-  const checkKey = async () => { setKeyState("checking"); setKeyError(""); try { await validateApiKey(settings.provider, key || undefined); if (key) await saveApiKey(settings.provider, key); setKey(""); setKeyState("valid"); } catch (error) { setKeyError(String(error)); setKeyState("error"); } };
+  const checkKey = async () => { setKeyState("checking"); setKeyError(""); try { await validateApiKey(settings.provider, key || undefined); if (key) await saveApiKey(settings.provider, key); setKey(""); setKeyState("valid"); setReplacingKey(false); await onSaved(); } catch (error) { setKeyError(String(error)); setKeyState("error"); } };
   const syncNow = async (direction: "push" | "pull") => { setSyncStatus("Syncing…"); try { await runSync(direction, syncPassword, syncAuthPassword); setSyncStatus(direction === "push" ? "Encrypted data uploaded." : "Encrypted data restored."); if (direction === "pull") await onSaved(); } catch (error) { setSyncStatus(String(error)); } };
   const addPlugin = async () => { setPluginStatus(""); try { await saveProvider({ id: plugin.id, name: plugin.name, baseUrl: plugin.baseUrl, transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions", models: [plugin.model], supportsRealtime: false, requiresApiKey: true }); setPlugin({ id: "", name: "", baseUrl: "", model: "" }); setPluginStatus("Provider added."); await onSaved(); } catch (error) { setPluginStatus(String(error)); } };
 
@@ -101,7 +106,14 @@ export default function Settings({ initial, providers, devices, onSaved }: { ini
         <Field label="Service"><Select value={settings.provider} onChange={(e) => { const next = providers.find((p) => p.id === e.target.value); setSettings((s) => ({ ...s, provider: e.target.value, model: next?.models[0] || s.model })); setDirty(true); }}>{providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
         <Field label="Spoken language"><Select value={settings.language} onChange={(e) => patch("language", e.target.value)}>{LANGUAGES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</Select></Field>
       </div>
-      {provider?.requiresApiKey ? <div className="key-row"><KeyRound size={18} /><Input type={showKey ? "text" : "password"} value={key} placeholder={`Enter ${provider.name} API key`} onChange={(e) => { setKey(e.target.value); setKeyState("idle"); setKeyError(""); }} /><button className="icon-button" onClick={() => setShowKey(!showKey)}>{showKey ? <EyeOff size={17} /> : <Eye size={17} />}</button><Button variant="secondary" busy={keyState === "checking"} onClick={() => void checkKey()}>{keyState === "valid" ? <CheckCircle2 size={16} /> : null}{keyState === "valid" ? "Verified" : "Verify & save"}</Button>{keyState === "error" ? <span className="field-error">{keyError || "Key rejected"}</span> : null}</div> : <div className="local-notice"><ShieldCheck size={17} />No API key required. Audio never leaves your machine.</div>}
+      {provider?.requiresApiKey
+        ? savedKey && !replacingKey
+          // A key is already stored for this service: show which one (last four characters
+          // only) instead of an empty box that reads as "you haven't set this up yet".
+          ? <div className="key-row saved"><KeyRound size={18} /><span className="key-saved-label"><CheckCircle2 size={15} />{provider.name} key saved</span><code className="key-mask">{savedKey}</code><Button variant="secondary" onClick={() => { setReplacingKey(true); setKeyState("idle"); setKeyError(""); }}>Replace</Button></div>
+          : <div className="key-row"><KeyRound size={18} /><Input type={showKey ? "text" : "password"} value={key} placeholder={savedKey ? `Enter a new ${provider.name} key` : `Enter ${provider.name} API key`} onChange={(e) => { setKey(e.target.value); setKeyState("idle"); setKeyError(""); }} /><button className="icon-button" onClick={() => setShowKey(!showKey)}>{showKey ? <EyeOff size={17} /> : <Eye size={17} />}</button><Button variant="secondary" busy={keyState === "checking"} onClick={() => void checkKey()}>{keyState === "valid" ? <CheckCircle2 size={16} /> : null}{keyState === "valid" ? "Verified" : "Verify & save"}</Button>{savedKey ? <Button variant="ghost" onClick={() => { setReplacingKey(false); setKey(""); setKeyError(""); setKeyState("idle"); }}>Cancel</Button> : null}{keyState === "error" ? <span className="field-error">{keyError || "Key rejected"}</span> : null}</div>
+        : <div className="local-notice"><ShieldCheck size={17} />No API key required. Audio never leaves your machine.</div>}
+      {otherKeys.length ? <p className="field-help other-keys">Also saved: {otherKeys.map(([id, mask]) => `${providers.find((p) => p.id === id)?.name ?? id} (${mask})`).join(" · ")}</p> : null}
       </Card>
 
       <Card><div className="setting-heading"><Mic /><div><h2>Microphone & shortcut</h2><p>How you start and stop dictating.</p></div></div><div className="form-grid">

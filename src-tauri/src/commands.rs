@@ -70,7 +70,10 @@ impl AppState {
 #[serde(rename_all = "camelCase")]
 pub struct BootstrapData {
     settings: AppSettings,
-    has_api_key: HashMap<String, bool>,
+    /// Per provider, a masked preview of the stored key (e.g. "••••••••a1b2"), present only for
+    /// providers that actually have one saved. Lets the UI show *which* key is in place instead
+    /// of prompting as if none existed, without ever handing the secret back to the frontend.
+    api_key_hints: HashMap<String, String>,
     devices: Vec<AudioDevice>,
     dictionary: Vec<DictionaryTerm>,
     snippets: Vec<Snippet>,
@@ -96,18 +99,18 @@ struct DictationEvent<'a> {
 pub fn bootstrap(state: State<'_, AppState>) -> Result<BootstrapData, String> {
     let settings = state.store.settings().map_err(display)?;
     let providers = state.store.providers().map_err(display)?;
-    let has_api_key = providers
+    let api_key_hints = providers
         .iter()
-        .map(|provider| {
-            (
-                provider.id.clone(),
-                keychain::get(&provider.id).ok().flatten().is_some(),
-            )
+        .filter_map(|provider| {
+            keychain::get(&provider.id)
+                .ok()
+                .flatten()
+                .map(|key| (provider.id.clone(), mask_api_key(&key)))
         })
         .collect();
     Ok(BootstrapData {
         settings,
-        has_api_key,
+        api_key_hints,
         devices: AudioRecorder::devices().unwrap_or_default(),
         dictionary: state.store.dictionary().map_err(display)?,
         snippets: state.store.snippets().map_err(display)?,
@@ -1018,6 +1021,19 @@ fn hide_overlay_later(app: AppHandle, delay: u64) {
 fn display(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
+
+/// Shows only the last four characters of a stored key - enough to recognise which key is
+/// saved, not enough to reconstruct it. Very short values are masked completely rather than
+/// leaking most of themselves.
+fn mask_api_key(key: &str) -> String {
+    const VISIBLE: usize = 4;
+    let count = key.chars().count();
+    if count <= VISIBLE * 2 {
+        return "••••••••".into();
+    }
+    let tail: String = key.chars().skip(count - VISIBLE).collect();
+    format!("••••••••{tail}")
+}
 fn normalize_word(word: &str) -> String {
     word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
         .to_string()
@@ -1128,6 +1144,14 @@ mod tests {
     #[test]
     fn hosted_default_uses_duration_estimate() {
         assert_eq!(estimated_cost(60_000, "voxtral-mini", "openrouter"), 0.003);
+    }
+
+    #[test]
+    fn masked_keys_reveal_only_the_last_four_characters() {
+        assert_eq!(mask_api_key("sk-or-v1-abcdef123456"), "••••••••3456");
+        // Anything short enough that four characters would give most of it away is fully masked.
+        assert_eq!(mask_api_key("abcd1234"), "••••••••");
+        assert_eq!(mask_api_key(""), "••••••••");
     }
 
     #[test]
