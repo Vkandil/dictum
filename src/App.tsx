@@ -49,8 +49,8 @@ export default function App() {
   return <div className="shell"><Sidebar page={page} onNavigate={setPage} /><main className="content">
     {page === "home" ? <Home settings={data.settings} onSaved={reload} /> : null}
     {page === "history" ? <History refreshToken={refresh} onDictionaryChanged={reload} /> : null}
-    {page === "dictionary" ? <Dictionary terms={data.dictionary} reload={reload} /> : null}
-    {page === "shortcuts" ? <Snippets snippets={data.snippets} reload={reload} /> : null}
+    {page === "dictionary" ? <Dictionary terms={data.dictionary} reload={reload} liveMode={data.settings.realtime.enabled} /> : null}
+    {page === "shortcuts" ? <Snippets snippets={data.snippets} reload={reload} liveMode={data.settings.realtime.enabled} /> : null}
     {page === "settings" ? <Settings key={JSON.stringify(data.settings)} initial={data.settings} providers={data.providers} devices={data.devices} apiKeyHints={data.apiKeyHints} onSaved={reload} /> : null}
   </main></div>;
 }

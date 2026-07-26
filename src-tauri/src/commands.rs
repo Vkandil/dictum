@@ -218,6 +218,31 @@ pub async fn validate_api_key(
     Ok(())
 }
 
+/// Opens a microphone purely to show its live signal level, so the user can confirm a device
+/// works before relying on it. Takes the device explicitly rather than reading saved settings:
+/// in Settings the microphone dropdown may have been changed but not saved yet, and the whole
+/// point is to test the one being considered. Nothing is transcribed or inserted - the audio is
+/// discarded by `stop_mic_test`.
+#[tauri::command]
+pub fn start_mic_test(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    device_id: Option<String>,
+) -> Result<(), String> {
+    if state.audio.is_active() {
+        return Err("stop the current dictation before testing the microphone".into());
+    }
+    state
+        .audio
+        .start(app, device_id.as_deref(), false, None)
+        .map_err(display)
+}
+
+#[tauri::command]
+pub fn stop_mic_test(state: State<'_, AppState>) {
+    state.audio.cancel();
+}
+
 #[tauri::command]
 pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
     if enabled {

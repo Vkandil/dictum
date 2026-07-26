@@ -1,6 +1,7 @@
 import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { CheckCircle2, ChevronDown, CloudCog, Eye, EyeOff, KeyRound, Mic, Plus, Save, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { Button, Card, Field, Input, Select, Toggle } from "../components/Ui";
+import MicTest from "../components/MicTest";
 import { checkHotkey, runSync, saveApiKey, saveProvider, saveSettings, validateApiKey } from "../lib/bridge";
 import { displayShortcut, friendlyShortcutError, shortcutFromKeyEvent } from "../lib/hotkey";
 import type { AppSettings, AudioDevice, ProviderManifest } from "../lib/types";
@@ -122,7 +123,7 @@ export default function Settings({ initial, providers, devices, apiKeyHints, onS
       </Card>
 
       <Card><div className="setting-heading"><Mic /><div><h2>Microphone & shortcut</h2><p>How you start and stop dictating.</p></div></div><div className="form-grid">
-        <Field label="Microphone"><Select value={settings.microphoneId || ""} onChange={(e) => patch("microphoneId", e.target.value || null)}><option value="">System default</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</Select></Field>
+        <Field label="Microphone"><Select value={settings.microphoneId || ""} onChange={(e) => patch("microphoneId", e.target.value || null)}><option value="">System default</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</Select><MicTest deviceId={settings.microphoneId} /></Field>
         <Field label="How the shortcut works"><Select value={settings.hotkey.mode} onChange={(e) => { patch("hotkey", { ...settings.hotkey, mode: e.target.value as AppSettings["hotkey"]["mode"] }); setCapturing(null); setModeNotice(""); }}>
           {/* Kept visible but disabled while Live is on: an option that silently disappears
               leaves people wondering whether they imagined it. Greyed out with the reason
