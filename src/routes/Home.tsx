@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AudioLines, Mic, ShieldCheck, Sparkles, Square } from "lucide-react";
 import { checkHotkey, getHistory, saveSettings, startRecording, stopRecording, listenDictation } from "../lib/bridge";
-import { displayShortcut, shortcutFromKeyEvent } from "../lib/hotkey";
+import { displayShortcut, friendlyShortcutError, shortcutFromKeyEvent } from "../lib/hotkey";
 import type { AppSettings, DictationState, HistoryItem } from "../lib/types";
 import { Card, Pill } from "../components/Ui";
 
@@ -34,7 +34,7 @@ export default function Home({ settings, onSaved }: { settings: AppSettings; onS
         : { ...settings, commandHotkey: captured.combo });
       await onSaved();
     } catch (error) {
-      setShortcutError(String(error));
+      setShortcutError(friendlyShortcutError(error));
     }
   };
 

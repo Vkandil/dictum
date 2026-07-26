@@ -2,7 +2,7 @@ import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "rea
 import { CheckCircle2, ChevronDown, CloudCog, Eye, EyeOff, KeyRound, Mic, Plus, Save, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { Button, Card, Field, Input, Select, Toggle } from "../components/Ui";
 import { checkHotkey, runSync, saveApiKey, saveProvider, saveSettings, validateApiKey } from "../lib/bridge";
-import { displayShortcut, shortcutFromKeyEvent } from "../lib/hotkey";
+import { displayShortcut, friendlyShortcutError, shortcutFromKeyEvent } from "../lib/hotkey";
 import type { AppSettings, AudioDevice, ProviderManifest } from "../lib/types";
 
 const LANGUAGES = [["auto", "Auto-detect / code-switch"], ["en", "English"], ["fr", "Français"], ["es", "Español"], ["de", "Deutsch"], ["it", "Italiano"], ["pt", "Português"], ["nl", "Nederlands"], ["ar", "العربية"], ["hi", "हिन्दी"], ["ja", "日本語"], ["zh", "中文"]];
@@ -24,6 +24,7 @@ export default function Settings({ initial, providers, devices, apiKeyHints, onS
   const [capturing, setCapturing] = useState<"dictation" | "command" | null>(null);
   const [shortcutError, setShortcutError] = useState("");
   const [replacingKey, setReplacingKey] = useState(false);
+  const [modeNotice, setModeNotice] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [syncPassword, setSyncPassword] = useState("");
   const [syncAuthPassword, setSyncAuthPassword] = useState("");
@@ -45,13 +46,17 @@ export default function Settings({ initial, providers, devices, apiKeyHints, onS
   /** Switching to live mode also moves an incompatible shortcut behavior out of the way, so the
    *  invalid combination the backend rejects can never be assembled here in the first place. */
   const chooseMode = (nextLive: boolean) => {
-    setSettings((current) => ({
-      ...current,
-      realtime: { ...current.realtime, enabled: nextLive },
-      hotkey: nextLive && !LIVE_SAFE_MODES.includes(current.hotkey.mode)
-        ? { ...current.hotkey, mode: "toggle" }
-        : current.hotkey,
-    }));
+    setSettings((current) => {
+      const mustSwitch = nextLive && !LIVE_SAFE_MODES.includes(current.hotkey.mode);
+      // Never change the user's shortcut behavior silently - say so, right where they can see
+      // the control that changed.
+      setModeNotice(mustSwitch ? "Your shortcut is now press to start, press again to stop — live typing can't work while a key is held down." : "");
+      return {
+        ...current,
+        realtime: { ...current.realtime, enabled: nextLive },
+        hotkey: mustSwitch ? { ...current.hotkey, mode: "toggle" } : current.hotkey,
+      };
+    });
     setDirty(true);
   };
 
@@ -73,7 +78,7 @@ export default function Settings({ initial, providers, devices, apiKeyHints, onS
       if (target === "dictation") patch("hotkey", { ...settings.hotkey, combo: captured.combo });
       else patch("commandHotkey", captured.combo);
     } catch (error) {
-      setShortcutError(String(error));
+      setShortcutError(friendlyShortcutError(error));
     }
   };
 
@@ -118,13 +123,14 @@ export default function Settings({ initial, providers, devices, apiKeyHints, onS
 
       <Card><div className="setting-heading"><Mic /><div><h2>Microphone & shortcut</h2><p>How you start and stop dictating.</p></div></div><div className="form-grid">
         <Field label="Microphone"><Select value={settings.microphoneId || ""} onChange={(e) => patch("microphoneId", e.target.value || null)}><option value="">System default</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</Select></Field>
-        <Field label="How the shortcut works"><Select value={settings.hotkey.mode} onChange={(e) => { patch("hotkey", { ...settings.hotkey, mode: e.target.value as AppSettings["hotkey"]["mode"] }); setCapturing(null); }}>
-          {/* Hold-to-talk keeps modifier keys pressed while you speak, which live transcription
-              cannot type through - so it isn't offered while live mode is on. */}
-          {live ? null : <option value="hold">Hold to talk</option>}
-          <option value="toggle">Press to start, press to stop</option>
+        <Field label="How the shortcut works"><Select value={settings.hotkey.mode} onChange={(e) => { patch("hotkey", { ...settings.hotkey, mode: e.target.value as AppSettings["hotkey"]["mode"] }); setCapturing(null); setModeNotice(""); }}>
+          {/* Kept visible but disabled while Live is on: an option that silently disappears
+              leaves people wondering whether they imagined it. Greyed out with the reason
+              spelled out below explains the constraint instead of hiding it. */}
+          <option value="hold" disabled={live}>{live ? "Hold to talk — unavailable in Live mode" : "Hold to talk"}</option>
+          <option value="toggle">Press to start, press again to stop</option>
           <option value="doubleTap">Double-tap right Shift</option>
-        </Select>{live ? <small className="field-help">“Hold to talk” is unavailable while live transcription is on.</small> : null}</Field>
+        </Select>{live ? <small className="field-help">Live mode types as you speak, so the shortcut can’t stay held down — the held keys would turn each character into a shortcut.</small> : null}</Field>
         <Field label="Dictation shortcut" hint={settings.hotkey.mode === "doubleTap" ? "Not used with double-tap" : "Click Record, then press your keys"}>{shortcutRecorder("dictation", settings.hotkey.combo, settings.hotkey.mode === "doubleTap")}</Field>
         <Field label="Voice command shortcut" hint="Say an instruction like “make it shorter”">{shortcutRecorder("command", settings.commandHotkey)}</Field>
         {shortcutError ? <p className="field-error">{shortcutError}</p> : null}
@@ -142,9 +148,10 @@ export default function Settings({ initial, providers, devices, apiKeyHints, onS
             <span className="mode-icon"><Zap size={18} /></span>
             <strong>Live</strong>
             <p>Words appear as you speak them, straight where you're typing.</p>
-            <ul><li>No AI formatting or voice snippets</li><li>Needs a shortcut you don't hold down</li><li>No length limit on long dictations</li></ul>
+            <ul><li>No AI formatting, snippets, or dictionary</li><li>Needs a shortcut you don't hold down</li><li>No length limit on long dictations</li></ul>
           </button>
         </div>
+        {modeNotice ? <p className="mode-notice"><Zap size={14} />{modeNotice}</p> : null}
 
         {live
           ? <div className="nested-settings form-grid">
