@@ -20,6 +20,7 @@ use tauri::{
     tray::TrayIconBuilder,
     Emitter, Manager, WindowEvent,
 };
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::Builder as ShortcutBuilder;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 #[cfg(not(debug_assertions))]
@@ -52,6 +53,21 @@ pub fn run() {
             app.manage(AppState::new(store));
             let _ = setup_tray(app);
             let _ = hotkey::register(app.handle(), &settings);
+            // Reconcile the OS launch-at-login entry with the saved preference. `save_settings`
+            // only acts when the value *changes*, so anything that drops the entry behind the
+            // app's back - reinstalling (the uninstaller removes it), moving the executable,
+            // or another tool clearing it - would leave the setting reading "on" forever while
+            // nothing actually launched at startup. Re-asserting it here also repairs a stale
+            // path after an upgrade.
+            let autolaunch = app.autolaunch();
+            if settings.autostart {
+                // Re-assert unconditionally rather than only when the entry is missing: that
+                // also repoints an entry left behind at an old executable path, which an
+                // "is it enabled?" check would report as fine while it launched nothing.
+                let _ = autolaunch.enable();
+            } else if autolaunch.is_enabled().unwrap_or(false) {
+                let _ = autolaunch.disable();
+            }
             #[cfg(not(debug_assertions))]
             {
                 let update_app = app.handle().clone();
