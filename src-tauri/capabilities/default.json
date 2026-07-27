@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions for Dictum windows",
-  "windows": ["main", "overlay"],
+  "windows": [
+    "main",
+    "overlay"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-show",
@@ -11,9 +14,6 @@
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
-    "autostart:allow-enable",
-    "autostart:allow-disable",
-    "autostart:allow-is-enabled",
     "opener:default",
     "updater:default"
   ]

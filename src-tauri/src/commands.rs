@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_autostart::ManagerExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::audio::{AudioDevice, AudioRecorder};
@@ -16,7 +15,7 @@ use crate::focus::{self, FocusedApp};
 use crate::format::{self, FormatIntent, FormatProvider};
 use crate::store::{AppSettings, DictionaryTerm, HistoryItem, ProviderManifest, Snippet, Store};
 use crate::transcribe::{create_provider, TranscribeError, TranscribeOpts};
-use crate::{hotkey, inject, keychain, sync};
+use crate::{autostart, hotkey, inject, keychain, sync};
 
 pub struct AppState {
     pub store: Store,
@@ -136,9 +135,9 @@ pub fn save_settings(
     let autostart_changed = settings.autostart != previous.autostart;
     if autostart_changed {
         let autostart = if settings.autostart {
-            app.autolaunch().enable()
+            autostart::enable()
         } else {
-            app.autolaunch().disable()
+            autostart::disable()
         };
         if let Err(error) = autostart {
             let _ = hotkey::register(&app, &previous);
@@ -149,9 +148,9 @@ pub fn save_settings(
         let _ = hotkey::register(&app, &previous);
         if autostart_changed {
             let _ = if previous.autostart {
-                app.autolaunch().enable()
+                autostart::enable()
             } else {
-                app.autolaunch().disable()
+                autostart::disable()
             };
         }
         return Err(display(error));
@@ -244,11 +243,11 @@ pub fn stop_mic_test(state: State<'_, AppState>) {
 }
 
 #[tauri::command]
-pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn set_autostart(enabled: bool) -> Result<(), String> {
     if enabled {
-        app.autolaunch().enable()
+        autostart::enable()
     } else {
-        app.autolaunch().disable()
+        autostart::disable()
     }
     .map_err(display)
 }
