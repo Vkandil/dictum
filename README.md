@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.3.0" src="https://img.shields.io/badge/version-1.3.0-2563EB" />
+  <img alt="Version 1.3.1" src="https://img.shields.io/badge/version-1.3.1-2563EB" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB" /></a>
@@ -523,7 +523,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.3.0. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). Windows Authenticode signing is optional and currently unconfigured, so installers are unsigned and SmartScreen warns on first run — verify the published SHA-256 checksums if you want assurance the download is intact.
+Dictum is version 1.3.1. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). Windows Authenticode signing is optional and currently unconfigured, so installers are unsigned and SmartScreen warns on first run — verify the published SHA-256 checksums if you want assurance the download is intact.
 
 ## License and acknowledgements
 

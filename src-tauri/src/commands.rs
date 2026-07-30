@@ -1022,6 +1022,38 @@ fn show_overlay(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("overlay") {
         let _ = window.show();
         let _ = window.set_ignore_cursor_events(false);
+        // The HUD is created always-on-top, but on Windows that only sets a Z-order position
+        // once - it isn't a standing guarantee. Another application raising itself topmost, or
+        // simply hiding and re-showing this window, can leave the HUD buried behind other
+        // windows, and the user then can't tell whether recording started or they're talking
+        // into the void. Re-assert it on every show.
+        let _ = window.set_always_on_top(true);
+        raise_to_front(&window);
+    }
+}
+
+/// Forces the window to the front of the topmost band without activating it. `SWP_NOACTIVATE`
+/// matters: the HUD must never steal focus from the application being dictated into, or the
+/// transcript would be inserted into the wrong place.
+fn raise_to_front(window: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+    let Ok(handle) = window.hwnd() else { return };
+    // Tauri hands back an HWND from its own version of the windows crate; rebuilding ours from
+    // the raw handle avoids having to keep the two versions in lockstep.
+    let hwnd = HWND(handle.0 as _);
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
     }
 }
 fn hide_overlay_later(app: AppHandle, delay: u64) {
