@@ -11,17 +11,26 @@ import dictumLogoOnWhite from "../../logos/Dictum_white_background.png";
 interface OnboardingProps {
   initial: AppSettings;
   devices?: AudioDevice[];
-  hasOpenRouterKey?: boolean;
+  /** Masked previews of keys already in the OS keychain, per provider id. */
+  apiKeyHints?: Record<string, string>;
   onComplete: () => Promise<void>;
 }
+
+/** The hosted services a first-time user can connect, with the model each one starts on.
+ *  Mistral is offered here because Live mode requires it - sending everyone through
+ *  OpenRouter first would mean creating an account they may never use. */
+const HOSTED_PROVIDERS = [
+  { id: "openrouter", name: "OpenRouter", model: "mistralai/voxtral-mini-transcribe", keyPrefix: "sk-or-v1-…", note: "One key, many models", console: "https://openrouter.ai/keys" },
+  { id: "mistral", name: "Mistral", model: "voxtral-mini-latest", keyPrefix: "Your Mistral API key", note: "Required for Live mode", console: "https://console.mistral.ai" },
+] as const;
 
 function friendlyDictationError(error: unknown, errorCode?: string): string {
   const message = String(error).replace(/^Error:\s*/i, "");
   if (errorCode === "quota" || /quota|credits|payment required/i.test(message)) {
-    return "Your API key was accepted, but OpenRouter reports no available credits or spending quota. Add credits or raise the limit in OpenRouter, then retry—or choose a local provider.";
+    return "Your API key was accepted, but the service reports no available credits or spending quota. Add credits or raise the spending limit in your provider account, then retry — or choose a local provider.";
   }
   if (errorCode === "invalid_key" || /API key rejected/i.test(message)) {
-    return "OpenRouter rejected this key. Return to the Connect step and validate a current key.";
+    return "The service rejected this key. Return to the Connect step and validate a current key.";
   }
   if (errorCode === "empty_audio" || /no speech detected/i.test(message)) {
     return "No speech was detected. Check the selected microphone, watch the signal meter, and speak for a few seconds before stopping.";
@@ -43,7 +52,7 @@ function friendlyShortcutError(error: unknown): string {
   return `Dictum could not save this shortcut: ${message}`;
 }
 
-export default function Onboarding({ initial, devices = [], hasOpenRouterKey = false, onComplete }: OnboardingProps) {
+export default function Onboarding({ initial, devices = [], apiKeyHints = {}, onComplete }: OnboardingProps) {
   const [step, setStep] = useState(() => {
     if ("__TAURI_INTERNALS__" in window) return 0;
     const preview = Number(new URLSearchParams(location.search).get("onboardingStep") ?? 0);
@@ -52,7 +61,11 @@ export default function Onboarding({ initial, devices = [], hasOpenRouterKey = f
   const [settings, setSettings] = useState(initial);
   const [apiKey, setApiKey] = useState("");
   const [checking, setChecking] = useState(false);
-  const [keyOk, setKeyOk] = useState(hasOpenRouterKey);
+  const [provider, setProvider] = useState<string>(() =>
+    HOSTED_PROVIDERS.some((item) => item.id === initial.provider) ? initial.provider : HOSTED_PROVIDERS[0].id);
+  const hosted = HOSTED_PROVIDERS.find((item) => item.id === provider) ?? HOSTED_PROVIDERS[0];
+  const savedKey = apiKeyHints[provider];
+  const [keyOk, setKeyOk] = useState(Boolean(apiKeyHints[initial.provider]));
   const [recording, setRecording] = useState(false);
   const [dictationPhase, setDictationPhase] = useState<DictationPhase>("idle");
   const [micLevel, setMicLevel] = useState(0);
@@ -78,8 +91,10 @@ export default function Onboarding({ initial, devices = [], hasOpenRouterKey = f
     setChecking(true);
     setSetupError("");
     try {
-      await validateApiKey("openrouter", apiKey);
-      await saveApiKey("openrouter", apiKey);
+      await validateApiKey(provider, apiKey);
+      await saveApiKey(provider, apiKey);
+      // Adopt the service that was just proven to work, along with a model it actually serves.
+      setSettings((current) => ({ ...current, provider, model: hosted.model }));
       setKeyOk(true);
     } catch (error) {
       setKeyOk(false);
@@ -223,7 +238,11 @@ export default function Onboarding({ initial, devices = [], hasOpenRouterKey = f
     <section className="onboarding-stage">
       {step === 0 ? <div className="onboarding-copy welcome"><div className="hero-orb"><img src={dictumLogo} alt="Dictum" /></div><p className="eyebrow">Open source voice dictation</p><h1>Your voice,<br /><em>everywhere.</em></h1><p>Speak naturally and Dictum inserts polished text into any app. Bring your own key, run locally when you want, and keep complete control of your data.</p><div className="trust-row"><span><ShieldCheck size={16} />No telemetry</span><span><KeyRound size={16} />Keys in OS keychain</span><span><Sparkles size={16} />MIT licensed</span></div></div> : null}
 
-      {step === 1 ? <div className="onboarding-copy"><div className="step-icon"><KeyRound /></div><p className="eyebrow">Step 1</p><h1>Connect OpenRouter</h1><p>Dictum uses your key directly. Key validation confirms access, while transcription also requires available OpenRouter credits or spending quota.</p><Card className="connect-card"><Field label="OpenRouter API key" hint={hasOpenRouterKey && !apiKey ? "A previously validated key is ready in the OS keychain." : "Stored securely in Keychain, Credential Manager, or Secret Service."}><Input type="password" autoFocus placeholder={hasOpenRouterKey ? "Saved key in OS keychain" : "sk-or-v1-…"} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setKeyOk(false); setSetupError(""); }} /></Field><Button busy={checking} disabled={!apiKey || keyOk} onClick={() => void verify()}>{keyOk ? <Check size={16} /> : null}{keyOk ? "Connected" : "Validate key"}</Button></Card>{setupError ? <p className="field-error onboarding-error">{setupError}</p> : null}<button className="text-link" onClick={() => { setSettings({ ...settings, provider: "local", model: "mistralai/Voxtral-Mini-3B-2507" }); setSetupError(""); next(); }}>Use a local provider instead</button></div> : null}
+      {step === 1 ? <div className="onboarding-copy"><div className="step-icon"><KeyRound /></div><p className="eyebrow">Step 1</p><h1>Connect a service</h1><p>Dictum sends your speech to the service you pick, using your own key. Both are pay-as-you-go with no subscription, at roughly $0.003 per minute.</p>
+        <div className="provider-choice">{HOSTED_PROVIDERS.map((item) => <button type="button" key={item.id} className={`provider-option ${provider === item.id ? "selected" : ""}`} aria-pressed={provider === item.id} onClick={() => { setProvider(item.id); setApiKey(""); setKeyOk(Boolean(apiKeyHints[item.id])); setSetupError(""); }}><strong>{item.name}</strong><span>{item.note}</span>{apiKeyHints[item.id] ? <small className="provider-saved"><Check size={12} />Key saved</small> : null}</button>)}</div>
+        <Card className="connect-card"><Field label={`${hosted.name} API key`} hint={savedKey && !apiKey ? `A saved key (${savedKey}) is ready in Windows Credential Manager.` : <>Stored in Windows Credential Manager. Create one at <a href={hosted.console} target="_blank" rel="noreferrer">{hosted.console.replace("https://", "")}</a>.</>}><Input type="password" autoFocus placeholder={savedKey ? "Saved key — enter a new one to replace it" : hosted.keyPrefix} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setKeyOk(Boolean(savedKey) && !event.target.value); setSetupError(""); }} /></Field><Button busy={checking} disabled={!apiKey || checking} onClick={() => void verify()}>{keyOk && !apiKey ? <Check size={16} /> : null}{keyOk && !apiKey ? "Connected" : "Validate key"}</Button></Card>
+        {setupError ? <p className="field-error onboarding-error">{setupError}</p> : null}
+        <button className="text-link" onClick={() => { setSettings({ ...settings, provider: "local", model: "mistralai/Voxtral-Mini-3B-2507" }); setSetupError(""); next(); }}>Use a local provider instead — no key, nothing leaves your machine</button></div> : null}
 
       {step === 2 ? <div className="onboarding-copy"><div className="step-icon"><ShieldCheck /></div><p className="eyebrow">Step 2</p><h1>Check your microphone.</h1><p>Pick the microphone you want to use, then run the test and speak — the meter should move.</p><div className="permission-list"><Card><div className="permission-icon"><Mic /></div><div><h3>Microphone</h3><p>{devices.length ? `${devices.length} input device${devices.length === 1 ? "" : "s"} detected` : "No input device was detected by Dictum"}</p>{devices.length ? <Select aria-label="Microphone" value={settings.microphoneId ?? ""} onChange={(event) => { setSettings({ ...settings, microphoneId: event.target.value || null }); setMicPermission("idle"); }}><option value="">System default</option>{devices.map((device) => <option key={device.id} value={device.id}>{device.name}{device.isDefault ? " (default)" : ""}</option>)}</Select> : null}</div><MicTest deviceId={settings.microphoneId ?? null} label="Test microphone" onError={(error: unknown) => { setSetupError(friendlyDictationError(error)); void openPermissions("microphone").catch(() => { /* The actionable message remains visible. */ }); }} /></Card><Card><div className="permission-icon"><Keyboard /></div><div><h3>System-wide typing</h3><p>Dictum uses standard Windows input APIs to paste at your cursor.</p></div><span className="permission-ok"><Check />Ready</span></Card></div>{setupError ? <p className="field-error onboarding-error">{setupError}</p> : null}</div> : null}
 

@@ -9,7 +9,7 @@ export function Card({ children, className = "", ...props }: HTMLAttributes<HTML
   return <section className={`card ${className}`} {...props}>{children}</section>;
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return <label className="field"><span className="field-label">{label}</span>{children}{hint ? <small>{hint}</small> : null}</label>;
 }
 

@@ -45,7 +45,7 @@ export default function App() {
   </div></div>;
   if (!data) return <div className="app-loader"><div className="brand-mark pulse"><img src={dictumLogo} alt="Dictum" /></div></div>;
   const previewDashboard = !windowLabel().startsWith("main") ? false : !('__TAURI_INTERNALS__' in window) && new URLSearchParams(location.search).has("preview");
-  if (!data.settings.onboardingComplete && !previewDashboard) return <Onboarding initial={data.settings} devices={data.devices} hasOpenRouterKey={Boolean(data.apiKeyHints.openrouter)} onComplete={reload} />;
+  if (!data.settings.onboardingComplete && !previewDashboard) return <Onboarding initial={data.settings} devices={data.devices} apiKeyHints={data.apiKeyHints} onComplete={reload} />;
   return <div className="shell"><Sidebar page={page} onNavigate={setPage} /><main className="content">
     {page === "home" ? <Home settings={data.settings} onSaved={reload} /> : null}
     {page === "history" ? <History refreshToken={refresh} onDictionaryChanged={reload} /> : null}

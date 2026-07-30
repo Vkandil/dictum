@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-2563EB" />
+  <img alt="Version 1.3.0" src="https://img.shields.io/badge/version-1.3.0-2563EB" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB" /></a>
@@ -119,15 +119,16 @@ Onboarding handles all required setup without editing a configuration file.
 
 ### 1. Connect a provider
 
-The simplest setup uses OpenRouter:
+Pick the service you want to use, then paste its key and click **Validate key**:
 
-1. Create an [OpenRouter API key](https://openrouter.ai/settings/keys).
-2. Make sure the account and key have available credits or spending quota.
-3. Paste the key into Dictum and click **Validate key**.
+- **[OpenRouter](https://openrouter.ai/keys)** — one key for many models.
+- **[Mistral](https://console.mistral.ai)** — required if you want [Live mode](#live-mode).
+
+Either way, make sure the account has available credits or spending quota. Both are pay-as-you-go with no subscription.
 
 The key is stored in Windows Credential Manager under service `com.dictum.app`; it is never placed in SQLite or `config.json`.
 
-You can instead choose **Use a local provider** and configure an OpenAI-compatible transcription server later.
+You can instead choose **Use a local provider** and configure an OpenAI-compatible transcription server later — no key, and nothing leaves your machine.
 
 ### 2. Test the microphone
 
@@ -522,7 +523,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.2.0. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). Windows Authenticode signing is optional and currently unconfigured, so installers are unsigned and SmartScreen warns on first run — verify the published SHA-256 checksums if you want assurance the download is intact.
+Dictum is version 1.3.0. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). Windows Authenticode signing is optional and currently unconfigured, so installers are unsigned and SmartScreen warns on first run — verify the published SHA-256 checksums if you want assurance the download is intact.
 
 ## License and acknowledgements
 

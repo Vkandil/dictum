@@ -66,6 +66,34 @@ describe("onboarding", () => {
     });
   });
 
+  it("can set up with Mistral alone, without an OpenRouter key", async () => {
+    // Live mode requires Mistral, so onboarding must not force an OpenRouter account on
+    // someone who only wants that.
+    const onComplete = vi.fn();
+    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={onComplete} />);
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /mistral/i }));
+    fireEvent.change(screen.getByLabelText(/mistral api key/i), { target: { value: "test-key" } });
+    fireEvent.click(screen.getByRole("button", { name: /validate key/i }));
+
+    await waitFor(() => expect(bridge.validateApiKey).toHaveBeenCalledWith("mistral", "test-key"));
+    expect(bridge.saveApiKey).toHaveBeenCalledWith("mistral", "test-key");
+
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    await screen.findByText(/give it a voice/i);
+    fireEvent.click(screen.getByRole("button", { name: /finish setup/i }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(bridge.saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+      provider: "mistral",
+      model: "voxtral-mini-latest",
+      onboardingComplete: true,
+    });
+  });
+
   it("shows the test dictation result in its sandbox", async () => {
     render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
@@ -81,7 +109,7 @@ describe("onboarding", () => {
   });
 
   it("captures and validates a shortcut without typed syntax", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} hasOpenRouterKey onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} apiKeyHints={{ openrouter: "••••••••abcd" }} onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
@@ -96,7 +124,7 @@ describe("onboarding", () => {
   });
 
   it("keeps delayed recording errors off the shortcut page and proceeds to the trial", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} hasOpenRouterKey onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} apiKeyHints={{ openrouter: "••••••••abcd" }} onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
@@ -111,7 +139,7 @@ describe("onboarding", () => {
   });
 
   it("reports shortcut save failures as shortcut errors instead of microphone errors", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} hasOpenRouterKey onComplete={vi.fn()} />);
+    render(<Onboarding initial={structuredClone(defaultSettings)} apiKeyHints={{ openrouter: "••••••••abcd" }} onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
