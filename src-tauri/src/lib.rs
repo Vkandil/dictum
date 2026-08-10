@@ -164,6 +164,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<()> {
                     "Pause dictation"
                 });
                 if paused {
+                    hotkey::disable_cancel(app);
                     state.audio.cancel();
                     let _ = app.global_shortcut().unregister_all();
                 } else if let Ok(settings) = state.store.settings() {

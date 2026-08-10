@@ -390,7 +390,7 @@ src-tauri\target\release\bundle\nsis\
 src-tauri\target\release\bundle\msi\
 ```
 
-Windows installers are Authenticode-signed only when a code-signing certificate is configured for the release workflow; otherwise they ship unsigned and Windows SmartScreen may warn on first run. Automatic updates are always cryptographically signed. See [docs/releasing.md](docs/releasing.md).
+The public v1.3.1 installers are unsigned and can trigger SmartScreen or Smart App Control. The release workflow on `main` now refuses to publish future Windows builds unless `dictum.exe`, the NSIS installer, and the MSI have valid, timestamped Authenticode signatures. Automatic updates use a separate Tauri signature. See [docs/releasing.md](docs/releasing.md) and [docs/windows-defender.md](docs/windows-defender.md).
 
 ## CLI
 
@@ -523,7 +523,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.3.1. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). Windows Authenticode signing is optional and currently unconfigured, so installers are unsigned and SmartScreen warns on first run — verify the published SHA-256 checksums if you want assurance the download is intact.
+Dictum is version 1.3.1. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). The already-published v1.3.1 artifacts are unsigned; future releases are blocked unless Authenticode signing is configured and verified. Until a signed successor is published, verify the v1.3.1 SHA-256 checksums and treat any named Defender threat as a verdict that must be investigated, not as a SmartScreen warning to bypass.
 
 ## License and acknowledgements
 

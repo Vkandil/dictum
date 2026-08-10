@@ -35,6 +35,6 @@ Audio is never written to disk. `history.storeAudio` is rejected by settings val
 
 ## Known limitations
 
-- **Installers are not code-signed.** Windows SmartScreen will warn you on first run. Verify the SHA-256 checksum against `SHA256SUMS.txt` on the release page if you want assurance the download is intact.
+- **The already-published v1.3.1 installers are not Authenticode-signed.** The release workflow on `main` now rejects future unsigned builds and verifies the application plus both installers. Until a signed successor is published, verify v1.3.1 against `SHA256SUMS.txt`; do not disable Defender to bypass a named malware verdict. See [docs/windows-defender.md](docs/windows-defender.md).
 - **Your transcription provider sees your audio.** That is inherent to using a hosted service. For a fully offline setup, point Dictum at a local server; audio then never leaves your machine.
 - **Local history is not encrypted at rest.** It is protected by your Windows user account, like other application data. Disable history, or shorten its retention, if that is not sufficient for your threat model.

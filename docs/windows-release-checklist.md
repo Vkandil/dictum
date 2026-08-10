@@ -30,6 +30,8 @@ The Rust suite covers audio conversion, silence trimming, whisper normalization,
 - [x] Live mode types at the cursor as you speak, and is prevented — in the UI and in backend validation — from pairing with hold-to-talk.
 - [x] Text history is optional and raw audio persistence is rejected by backend validation.
 - [x] The updater is restricted to signed Windows release artifacts.
+- [x] The default hold/toggle modes do not install an all-keyboard low-level listener; the raw listener is opt-in for double-tap mode only.
+- [x] The release workflow refuses unsigned builds and verifies the Authenticode signature and timestamp of the application, NSIS installer, and MSI.
 
 ## Manual smoke test before publishing
 
@@ -50,6 +52,8 @@ Run these checks on a clean Windows 10 or Windows 11 user profile:
 13. Confirm History retention/deletion, Dictionary, Snippets, provider fallback, and encrypted sync.
 14. Install the MSI package in a disposable VM and verify uninstall removes the application.
 15. Update from the previous signed Dictum version and confirm the updater signature is accepted.
+16. With current Defender intelligence, scan all three signed files and launch Dictum while behavioural protection is active.
+17. On Windows 11, install and launch once with Smart App Control in enforcement mode.
 
 ## Release artifacts
 
@@ -60,4 +64,3 @@ A complete GitHub release contains:
 - Signed `latest.json` updater manifest and signatures
 - Release notes describing user-visible changes
 - SHA-256 checksums for the installers
-
