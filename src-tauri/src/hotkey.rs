@@ -14,7 +14,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, S
 use crate::commands::{self, AppState};
 use crate::store::AppSettings;
 
-static DOUBLE_TAP_LISTENER: Once = Once::new();
+static KEYBOARD_LISTENER: Once = Once::new();
 static LAST_SHIFT: Mutex<Option<Instant>> = Mutex::new(None);
 static SHIFT_HELD: AtomicBool = AtomicBool::new(false);
 
@@ -63,15 +63,11 @@ pub fn register(app: &AppHandle, settings: &AppSettings) -> Result<()> {
         )?;
     }
     app.global_shortcut().register(command)?;
-    // `rdev` installs a low-level system-wide keyboard hook. Starting it for every user made
-    // the normal hold/toggle modes look needlessly similar to a keylogger to behavioural AV:
-    // the callback received every key event even though Dictum only cared about Right Shift
-    // and Escape. Keep that privileged hook strictly opt-in for the one feature that needs it.
-    // Once started, rdev cannot detach the hook, but switching away is fully effective after
-    // the next launch and ordinary installations never start it at all.
-    if settings.hotkey.mode == "doubleTap" {
-        start_double_tap_listener(app.clone());
-    }
+    // Do not register or unregister another global shortcut from this callback's call path:
+    // on Windows that re-entrant operation can deadlock the shortcut manager as soon as the
+    // dictation shortcut is pressed. Escape and the optional double tap are observed here
+    // instead because neither can be expressed safely as a normal Dictum shortcut.
+    start_keyboard_listener(app.clone());
     Ok(())
 }
 
@@ -79,33 +75,8 @@ fn cancel_shortcut() -> Result<Shortcut> {
     Shortcut::from_str("Escape").context("could not create the cancel shortcut")
 }
 
-/// Capture Escape only while Dictum is recording. Unlike the rdev listener this uses the
-/// normal Windows global-shortcut API and is unregistered as soon as capture ends.
-pub fn enable_cancel(app: &AppHandle) -> Result<()> {
-    let shortcut = cancel_shortcut()?;
-    if !app.global_shortcut().is_registered(shortcut) {
-        app.global_shortcut().register(shortcut)?;
-    }
-    Ok(())
-}
-
-pub fn disable_cancel(app: &AppHandle) {
-    let Ok(shortcut) = cancel_shortcut() else {
-        return;
-    };
-    if app.global_shortcut().is_registered(shortcut) {
-        let _ = app.global_shortcut().unregister(shortcut);
-    }
-}
-
 pub fn handle(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
     let state = app.state::<AppState>();
-    if cancel_shortcut().ok().as_ref() == Some(shortcut) {
-        if event.state() == ShortcutState::Pressed && state.audio.is_active() {
-            commands::cancel(app, &state);
-        }
-        return;
-    }
     let Ok(settings) = state.store.settings() else {
         return;
     };
@@ -148,11 +119,21 @@ fn debounced(state: &AppState) -> bool {
     true
 }
 
-fn start_double_tap_listener(app: AppHandle) {
-    DOUBLE_TAP_LISTENER.call_once(|| {
+fn start_keyboard_listener(app: AppHandle) {
+    KEYBOARD_LISTENER.call_once(|| {
         std::thread::spawn(move || {
             let listener_app = app.clone();
             let result = rdev::listen(move |event| {
+                if matches!(
+                    event.event_type,
+                    rdev::EventType::KeyPress(rdev::Key::Escape)
+                ) {
+                    let state = listener_app.state::<AppState>();
+                    if state.audio.is_active() {
+                        commands::cancel(&listener_app, &state);
+                    }
+                    return;
+                }
                 if matches!(
                     event.event_type,
                     rdev::EventType::KeyRelease(rdev::Key::ShiftRight)

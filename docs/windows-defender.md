@@ -4,7 +4,7 @@
 
 The public Dictum 1.3.1 NSIS installer has the published SHA-256 hash `6ef584db7289d01660bf77fe3c86a5622413bf11a279f1c23af06efe12c3a887`, but it has no Authenticode signature. A current Microsoft Defender static scan of that exact installer reported no threats during this investigation. The locally built application, NSIS installer, and MSI also reported no static threats.
 
-That does not make the old installer suitable for broad distribution. It has no publisher reputation, and Dictum legitimately combines several behaviours that antivirus heuristics treat cautiously: global shortcuts, a microphone, clipboard access, synthetic keyboard input, and optional launch-at-login. Before the change on `main`, it also installed an all-keyboard low-level listener at every launch just to observe Escape and a Right-Shift double tap. The listener is now started only after the user selects double-tap mode; Escape uses a normal global shortcut only while recording.
+That does not make the old installer suitable for broad distribution. It has no publisher reputation, and Dictum legitimately combines several behaviours that antivirus heuristics treat cautiously: global shortcuts, a microphone, clipboard access, synthetic keyboard input, and optional launch-at-login. The keyboard listener is limited to handling Escape cancellation and the optional Right-Shift double tap; it does not retain or transmit keyboard input. It must not register or unregister a global shortcut while a shortcut callback is executing, because that can deadlock Windows' shortcut manager.
 
 The diagnosis is therefore:
 

@@ -338,9 +338,6 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
         settings.whisper_mode,
         live_tx,
     )?;
-    // Escape is needed only during capture. Registering it on demand avoids keeping a
-    // low-level all-keyboard listener alive for the default hold/toggle modes.
-    let _ = hotkey::enable_cancel(app);
     show_overlay(app);
     emit(
         app,
@@ -366,7 +363,6 @@ pub async fn stop_pipeline(app: AppHandle) -> Result<()> {
     if !state.audio.is_active() {
         return Ok(());
     }
-    hotkey::disable_cancel(&app);
     let _ = app.emit("recording:stop", ());
     let capture = match state.audio.stop() {
         Ok(capture) => capture,
@@ -897,7 +893,6 @@ pub fn cancel_recording(app: AppHandle, state: State<'_, AppState>) {
 }
 
 pub fn cancel(app: &AppHandle, state: &AppState) {
-    hotkey::disable_cancel(app);
     state.audio.cancel();
     state.operation.lock().unwrap().cancel();
     state.busy.store(false, Ordering::SeqCst);

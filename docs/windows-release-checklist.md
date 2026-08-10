@@ -30,7 +30,7 @@ The Rust suite covers audio conversion, silence trimming, whisper normalization,
 - [x] Live mode types at the cursor as you speak, and is prevented — in the UI and in backend validation — from pairing with hold-to-talk.
 - [x] Text history is optional and raw audio persistence is rejected by backend validation.
 - [x] The updater is restricted to signed Windows release artifacts.
-- [x] The default hold/toggle modes do not install an all-keyboard low-level listener; the raw listener is opt-in for double-tap mode only.
+- [x] Escape cancellation and optional double-tap use the keyboard listener without registering or unregistering a global shortcut from inside a shortcut callback.
 - [x] The release workflow refuses unsigned builds and verifies the Authenticode signature and timestamp of the application, NSIS installer, and MSI.
 
 ## Manual smoke test before publishing

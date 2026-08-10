@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.3.1" src="https://img.shields.io/badge/version-1.3.1-2563EB" />
+  <img alt="Version 1.3.2" src="https://img.shields.io/badge/version-1.3.2-2563EB" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB" /></a>
@@ -390,7 +390,7 @@ src-tauri\target\release\bundle\nsis\
 src-tauri\target\release\bundle\msi\
 ```
 
-The public v1.3.1 installers are unsigned and can trigger SmartScreen or Smart App Control. The release workflow on `main` now refuses to publish future Windows builds unless `dictum.exe`, the NSIS installer, and the MSI have valid, timestamped Authenticode signatures. Automatic updates use a separate Tauri signature. See [docs/releasing.md](docs/releasing.md) and [docs/windows-defender.md](docs/windows-defender.md).
+The published v1.3.1 installers are unsigned and can trigger SmartScreen or Smart App Control. Dictum v1.3.2 is prepared but will be published only after Authenticode signing is configured. The release workflow on `main` refuses to publish Windows builds unless `dictum.exe`, the NSIS installer, and the MSI have valid, timestamped Authenticode signatures. Automatic updates use a separate Tauri signature. See [docs/releasing.md](docs/releasing.md) and [docs/windows-defender.md](docs/windows-defender.md).
 
 ## CLI
 
@@ -523,7 +523,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.3.1. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). The already-published v1.3.1 artifacts are unsigned; future releases are blocked unless Authenticode signing is configured and verified. Until a signed successor is published, verify the v1.3.1 SHA-256 checksums and treat any named Defender threat as a verdict that must be investigated, not as a SmartScreen warning to bypass.
+Dictum is version 1.3.2. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). The already-published v1.3.1 artifacts are unsigned; v1.3.2 is intentionally not published until Authenticode signing is configured and verified. Until a signed successor is published, verify the v1.3.1 SHA-256 checksums and treat any named Defender threat as a verdict that must be investigated, not as a SmartScreen warning to bypass.
 
 ## License and acknowledgements
 
