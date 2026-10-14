@@ -1,0 +1,24 @@
+{
+  "name": "dictum-launch-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "audio": "bash audio/build.sh",
+    "render": "remotion render src/index.ts DictumLaunch out/dictum-launch.mp4 --props='{\"audio\":\"mix.wav\"}' --audio-codec=aac --audio-bitrate=320k",
+    "render:nomusic": "remotion render src/index.ts DictumLaunch out/dictum-launch-nomusic.mp4 --props='{\"audio\":\"mix_nomusic.wav\"}' --audio-codec=aac --audio-bitrate=320k",
+    "stills": "node stills.mjs",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.535",
+    "@remotion/cli": "4.0.535",
+    "@remotion/renderer": "4.0.535",
+    "@types/react": "^19.3.0",
+    "lucide-react": "^1.57.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "4.0.535",
+    "typescript": "^7.0.2"
+  }
+}
