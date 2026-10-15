@@ -17,6 +17,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: ./.github/actions/setup-native
       - run: npm ci
       - run: npm run build
       - run: npm test

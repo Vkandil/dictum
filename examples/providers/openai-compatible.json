@@ -6,5 +6,8 @@
   "chatPath": "/chat/completions",
   "models": ["example-transcribe-1"],
   "supportsRealtime": false,
-  "requiresApiKey": true
+  "requiresApiKey": true,
+  "protocol": "openai",
+  "auth": "bearer",
+  "validationPath": "/models"
 }

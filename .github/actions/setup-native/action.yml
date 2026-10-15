@@ -1,0 +1,22 @@
+name: Set up native speech tools
+description: Configure libclang and bound native build concurrency on Windows.
+runs:
+  using: composite
+  steps:
+    - name: Configure native speech build tools
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $clangDirectory = 'C:\Program Files\LLVM\bin'
+        if (-not (Test-Path (Join-Path $clangDirectory 'libclang.dll'))) {
+          choco install llvm --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'LLVM installation failed' }
+        }
+        if (-not (Test-Path (Join-Path $clangDirectory 'libclang.dll'))) {
+          throw 'LLVM/libclang is required to build the native Whisper bindings'
+        }
+        "LIBCLANG_PATH=$clangDirectory" | Out-File $env:GITHUB_ENV -Append
+        'CARGO_BUILD_JOBS=2' | Out-File $env:GITHUB_ENV -Append
+        'CARGO_INCREMENTAL=0' | Out-File $env:GITHUB_ENV -Append
+        cmake --version
+        if ($LASTEXITCODE -ne 0) { throw 'CMake is required for the native speech engines' }

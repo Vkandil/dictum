@@ -1,0 +1,1929 @@
+[
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "mistralai/voxtral-mini-transcribe",
+      "openai/whisper-large-v3-turbo",
+      "microsoft/mai-transcribe-2",
+      "elevenlabs/scribe-v2",
+      "openai/gpt-transcribe",
+      "openai/whisper-large-v3",
+      "openai/gpt-4o-mini-transcribe",
+      "openai/gpt-4o-transcribe",
+      "openai/whisper-1",
+      "deepgram/nova-3",
+      "assemblyai/universal-3-5-pro",
+      "qwen/qwen3-asr-0.6b",
+      "qwen/qwen3-asr-1.7b",
+      "nvidia/parakeet-tdt-0.6b-v3",
+      "google/chirp-3",
+      "google/gemini-3.5-transcribe",
+      "x-ai/grok-stt-1.0",
+      "fish-audio/transcribe-1-pro",
+      "fish-audio/transcribe-1",
+      "meta/muse-voice-transcribe-1.0",
+      "microsoft/mai-transcribe-1.5",
+      "elevenlabs/scribe-v2-medical",
+      "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+      "mistralai/voxtral-mini-3b-2507",
+      "mistralai/voxtral-small-24b-2507-stt"
+    ],
+    "modelInfo": [
+      {
+        "id": "mistralai/voxtral-mini-transcribe",
+        "name": "Voxtral Mini Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "openai/whisper-large-v3-turbo",
+        "name": "Whisper Large v3 Turbo",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "microsoft/mai-transcribe-2",
+        "name": "MAI-Transcribe 2",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "elevenlabs/scribe-v2",
+        "name": "Scribe v2",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "openai/gpt-transcribe",
+        "name": "GPT Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "openai/whisper-large-v3",
+        "name": "Whisper Large v3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-4o-mini-transcribe",
+        "name": "GPT-4o Mini Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-4o-transcribe",
+        "name": "GPT-4o Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "openai/whisper-1",
+        "name": "Whisper",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "deepgram/nova-3",
+        "name": "Nova-3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "assemblyai/universal-3-5-pro",
+        "name": "Universal-3.5 Pro",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "qwen/qwen3-asr-0.6b",
+        "name": "Qwen3-ASR 0.6B",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "qwen/qwen3-asr-1.7b",
+        "name": "Qwen3-ASR 1.7B",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "nvidia/parakeet-tdt-0.6b-v3",
+        "name": "Parakeet v3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "google/chirp-3",
+        "name": "Chirp 3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "google/gemini-3.5-transcribe",
+        "name": "Gemini Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "x-ai/grok-stt-1.0",
+        "name": "Grok STT",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "fish-audio/transcribe-1-pro",
+        "name": "Fish Transcribe Pro",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "fish-audio/transcribe-1",
+        "name": "Fish Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "meta/muse-voice-transcribe-1.0",
+        "name": "Muse Voice Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "microsoft/mai-transcribe-1.5",
+        "name": "MAI-Transcribe 1.5",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "elevenlabs/scribe-v2-medical",
+        "name": "Scribe Medical",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+        "name": "Nemotron 3.5 ASR",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "mistralai/voxtral-mini-3b-2507",
+        "name": "Voxtral Mini 3B",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "mistralai/voxtral-small-24b-2507-stt",
+        "name": "Voxtral Small STT",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "openrouter",
+    "auth": "bearer",
+    "validationPath": "/models",
+    "keyUrl": "https://openrouter.ai/keys",
+    "chatModels": [
+      "mistralai/ministral-8b",
+      "openai/gpt-4o-mini"
+    ],
+    "description": "One key, many models",
+    "recommended": true
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "baseUrl": "https://api.mistral.ai/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "voxtral-mini-latest",
+      "voxtral-mini-2602"
+    ],
+    "modelInfo": [
+      {
+        "id": "voxtral-mini-latest",
+        "name": "Voxtral Mini",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "voxtral-mini-2602",
+        "name": "Voxtral Mini Transcribe 2",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "voxtral-mini-transcribe-realtime-2602",
+        "name": "Voxtral Realtime",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "openai",
+    "auth": "bearer",
+    "validationPath": "/models",
+    "keyUrl": "https://console.mistral.ai",
+    "chatModels": [
+      "ministral-8b-latest"
+    ],
+    "description": ""
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "baseUrl": "https://api.openai.com/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "gpt-transcribe",
+      "gpt-4o-mini-transcribe",
+      "gpt-4o-transcribe",
+      "whisper-1",
+      "gpt-4o-transcribe-diarize"
+    ],
+    "modelInfo": [
+      {
+        "id": "gpt-transcribe",
+        "name": "GPT Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "gpt-4o-mini-transcribe",
+        "name": "GPT-4o Mini Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "gpt-4o-transcribe",
+        "name": "GPT-4o Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "whisper-1",
+        "name": "Whisper",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "gpt-4o-transcribe-diarize",
+        "name": "GPT-4o Diarize",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "gpt-live-transcribe",
+        "name": "GPT Live Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "openai",
+    "auth": "bearer",
+    "validationPath": "/models",
+    "keyUrl": "https://platform.openai.com/api-keys",
+    "chatModels": [
+      "gpt-4o-mini"
+    ],
+    "description": ""
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "whisper-large-v3-turbo",
+      "whisper-large-v3"
+    ],
+    "modelInfo": [
+      {
+        "id": "whisper-large-v3-turbo",
+        "name": "Whisper Large v3 Turbo",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "whisper-large-v3",
+        "name": "Whisper Large v3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "openai",
+    "auth": "bearer",
+    "validationPath": "/models",
+    "keyUrl": "https://console.groq.com/keys",
+    "chatModels": [
+      "llama-3.3-70b-versatile"
+    ],
+    "description": ""
+  },
+  {
+    "id": "elevenlabs",
+    "name": "ElevenLabs",
+    "baseUrl": "https://api.elevenlabs.io/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "scribe_v2",
+      "scribe_v2_medical"
+    ],
+    "modelInfo": [
+      {
+        "id": "scribe_v2",
+        "name": "Scribe v2",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "scribe_v2_medical",
+        "name": "Scribe Medical",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "scribe_v2_realtime",
+        "name": "Scribe Realtime",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "elevenlabs",
+    "auth": "xi-api-key",
+    "validationPath": "/user",
+    "keyUrl": "https://elevenlabs.io/app/settings/api-keys",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "deepgram",
+    "name": "Deepgram",
+    "baseUrl": "https://api.deepgram.com/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "nova-3",
+      "nova-2"
+    ],
+    "modelInfo": [
+      {
+        "id": "nova-3",
+        "name": "Nova-3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "nova-2",
+        "name": "Nova-2",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "nova-3",
+        "name": "Nova-3 Live",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      },
+      {
+        "id": "flux-general-multi",
+        "name": "Flux Multilingual",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      },
+      {
+        "id": "flux-general-en",
+        "name": "Flux English",
+        "languages": [
+          "en"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "deepgram",
+    "auth": "token",
+    "validationPath": "/projects",
+    "keyUrl": "https://console.deepgram.com",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "assemblyai",
+    "name": "AssemblyAI",
+    "baseUrl": "https://api.assemblyai.com/v2",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "universal-3-5-pro",
+      "universal-2"
+    ],
+    "modelInfo": [
+      {
+        "id": "universal-3-5-pro",
+        "name": "Universal-3.5 Pro",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "universal-2",
+        "name": "Universal-2",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "universal-3-pro",
+        "name": "Universal-3 Pro Streaming",
+        "languages": [
+          "en",
+          "fr",
+          "es",
+          "de",
+          "pt",
+          "it"
+        ],
+        "live": true,
+        "recommended": false
+      },
+      {
+        "id": "universal-streaming-multilingual",
+        "name": "Universal Streaming",
+        "languages": [
+          "en",
+          "fr",
+          "es",
+          "de",
+          "pt",
+          "it"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "assemblyai",
+    "auth": "raw",
+    "validationPath": "/transcript?limit=1",
+    "keyUrl": "https://www.assemblyai.com/dashboard",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "soniox",
+    "name": "Soniox",
+    "baseUrl": "https://api.soniox.com/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "stt-async-v4"
+    ],
+    "modelInfo": [
+      {
+        "id": "stt-async-v4",
+        "name": "STT Async v4",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "stt-rt-v4",
+        "name": "STT Realtime v4",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "soniox",
+    "auth": "bearer",
+    "validationPath": "/models",
+    "keyUrl": "https://console.soniox.com",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "gladia",
+    "name": "Gladia",
+    "baseUrl": "https://api.gladia.io/v2",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "solaria-3"
+    ],
+    "modelInfo": [
+      {
+        "id": "solaria-3",
+        "name": "Solaria-3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "gladia",
+    "auth": "x-gladia-key",
+    "validationPath": "",
+    "keyUrl": "https://app.gladia.io",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "speechmatics",
+    "name": "Speechmatics",
+    "baseUrl": "https://asr.api.speechmatics.com/v2",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "enhanced"
+    ],
+    "modelInfo": [
+      {
+        "id": "enhanced",
+        "name": "Enhanced",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "speechmatics",
+    "auth": "bearer",
+    "validationPath": "/jobs",
+    "keyUrl": "https://portal.speechmatics.com",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "gemini",
+    "name": "Google Gemini",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "gemini-3.5-transcribe"
+    ],
+    "modelInfo": [
+      {
+        "id": "gemini-3.5-transcribe",
+        "name": "Gemini Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "gemini",
+    "auth": "x-goog-api-key",
+    "validationPath": "/models",
+    "keyUrl": "https://aistudio.google.com/api-keys",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere",
+    "baseUrl": "https://api.cohere.com/v2",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "cohere-transcribe-03-2026"
+    ],
+    "modelInfo": [
+      {
+        "id": "cohere-transcribe-03-2026",
+        "name": "Cohere Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "it",
+          "pt",
+          "nl",
+          "el",
+          "pl",
+          "vi",
+          "zh",
+          "ar",
+          "ja",
+          "ko"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "cohere",
+    "auth": "bearer",
+    "validationPath": "",
+    "keyUrl": "https://dashboard.cohere.com/api-keys",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "revai",
+    "name": "Rev AI",
+    "baseUrl": "https://api.rev.ai/speechtotext/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "machine"
+    ],
+    "modelInfo": [
+      {
+        "id": "machine",
+        "name": "Rev AI",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "revai",
+    "auth": "bearer",
+    "validationPath": "/account",
+    "keyUrl": "https://www.rev.ai/access-token",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "sarvam",
+    "name": "Sarvam",
+    "baseUrl": "https://api.sarvam.ai",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "saaras:v4",
+      "saaras:v3"
+    ],
+    "modelInfo": [
+      {
+        "id": "saaras:v4",
+        "name": "Saaras v4",
+        "languages": [
+          "en",
+          "hi",
+          "bn",
+          "ta",
+          "te",
+          "ml",
+          "mr",
+          "gu",
+          "kn",
+          "pa"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "saaras:v3",
+        "name": "Saaras v3",
+        "languages": [
+          "en",
+          "hi"
+        ],
+        "live": false,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "sarvam",
+    "auth": "api-subscription-key",
+    "validationPath": "",
+    "keyUrl": "https://dashboard.sarvam.ai",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "cartesia",
+    "name": "Cartesia",
+    "baseUrl": "https://api.cartesia.ai",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "ink-2"
+    ],
+    "modelInfo": [
+      {
+        "id": "ink-2",
+        "name": "Ink 2",
+        "languages": [
+          "en",
+          "fr",
+          "hi",
+          "ja",
+          "es"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "ink-2",
+        "name": "Ink 2 Live",
+        "languages": [
+          "en",
+          "fr",
+          "hi",
+          "ja",
+          "es"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "cartesia",
+    "auth": "x-api-key",
+    "validationPath": "",
+    "keyUrl": "https://play.cartesia.ai/keys",
+    "chatModels": [],
+    "description": ""
+  },
+  {
+    "id": "azure",
+    "name": "Azure Speech",
+    "baseUrl": "https://westeurope.api.cognitive.microsoft.com",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "fast"
+    ],
+    "modelInfo": [
+      {
+        "id": "fast",
+        "name": "Fast Transcription",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "azure",
+    "auth": "Ocp-Apim-Subscription-Key",
+    "validationPath": "",
+    "keyUrl": "https://portal.azure.com",
+    "chatModels": [],
+    "description": "",
+    "endpointRequired": true
+  },
+  {
+    "id": "googlecloud",
+    "name": "Google Cloud",
+    "baseUrl": "https://speech.googleapis.com/v2",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "chirp_3"
+    ],
+    "modelInfo": [
+      {
+        "id": "chirp_3",
+        "name": "Chirp 3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": false,
+    "requiresApiKey": true,
+    "protocol": "googlecloud",
+    "auth": "bearer",
+    "validationPath": "",
+    "keyUrl": "https://console.cloud.google.com",
+    "chatModels": [],
+    "description": "",
+    "endpointRequired": true
+  },
+  {
+    "id": "aws",
+    "name": "Amazon Transcribe",
+    "baseUrl": "https://transcribestreaming.eu-west-1.amazonaws.com",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "transcribe"
+    ],
+    "modelInfo": [
+      {
+        "id": "transcribe",
+        "name": "Amazon Transcribe",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "transcribe",
+        "name": "Amazon Transcribe Live",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": true,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": true,
+    "protocol": "aws",
+    "auth": "aws",
+    "validationPath": "",
+    "keyUrl": "https://console.aws.amazon.com/transcribe",
+    "chatModels": [],
+    "description": "",
+    "endpointRequired": true
+  },
+  {
+    "id": "local",
+    "name": "Compatible server",
+    "baseUrl": "http://localhost:8000/v1",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "mistralai/Voxtral-Mini-3B-2507"
+    ],
+    "modelInfo": [
+      {
+        "id": "mistralai/Voxtral-Mini-3B-2507",
+        "name": "Voxtral Mini 3B",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": false,
+    "protocol": "openai",
+    "auth": "bearer",
+    "validationPath": "/models",
+    "keyUrl": "",
+    "chatModels": [],
+    "description": "Connect a server you already run"
+  },
+  {
+    "id": "offline",
+    "name": "On this computer",
+    "baseUrl": "",
+    "transcriptionPath": "/audio/transcriptions",
+    "chatPath": "/chat/completions",
+    "models": [
+      "whisper-small",
+      "whisper-tiny",
+      "whisper-base",
+      "whisper-turbo",
+      "whisper-turbo-q5",
+      "whisper-large",
+      "parakeet-v3",
+      "qwen3-asr-0.6b",
+      "moonshine-tiny"
+    ],
+    "modelInfo": [
+      {
+        "id": "whisper-tiny",
+        "name": "Whisper Tiny",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "whisper-base",
+        "name": "Whisper Base",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "whisper-small",
+        "name": "Whisper Small",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": true
+      },
+      {
+        "id": "whisper-turbo",
+        "name": "Whisper Large v3 Turbo",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "whisper-turbo-q5",
+        "name": "Whisper Turbo (compact)",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "whisper-large",
+        "name": "Whisper Large v3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "parakeet-v3",
+        "name": "Parakeet v3",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "nl",
+          "it",
+          "pt"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "qwen3-asr-0.6b",
+        "name": "Qwen3-ASR 0.6B",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "ar",
+          "hi",
+          "ko",
+          "ru"
+        ],
+        "live": false,
+        "recommended": false
+      },
+      {
+        "id": "nemotron-streaming",
+        "name": "Nemotron 3.5 Live",
+        "languages": [
+          "en",
+          "fr",
+          "de",
+          "es",
+          "pt",
+          "it",
+          "nl",
+          "ja",
+          "zh",
+          "hi"
+        ],
+        "live": true,
+        "recommended": false
+      },
+      {
+        "id": "moonshine-tiny",
+        "name": "Moonshine Tiny English",
+        "languages": [
+          "en"
+        ],
+        "live": false,
+        "recommended": false
+      }
+    ],
+    "supportsRealtime": true,
+    "requiresApiKey": false,
+    "protocol": "native",
+    "auth": "none",
+    "validationPath": "",
+    "keyUrl": "",
+    "chatModels": [],
+    "description": "No account. Works offline after download."
+  }
+]

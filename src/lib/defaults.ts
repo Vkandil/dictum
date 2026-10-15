@@ -1,6 +1,11 @@
 import type { AppSettings, BootstrapData } from "./types";
+import providers from "../../src-tauri/catalog/providers.json";
 
 export const defaultSettings: AppSettings = {
+  uiLanguage: "auto",
+  setupVerified: false,
+  providerModels: {},
+  providerEndpoints: {},
   onboardingComplete: false,
   provider: "openrouter",
   model: "mistralai/voxtral-mini-transcribe",
@@ -11,6 +16,7 @@ export const defaultSettings: AppSettings = {
   microphoneId: null,
   injection: "clipboard",
   formatting: {
+    provider: "openrouter",
     enabled: true,
     model: "mistralai/ministral-8b",
     removeFillers: true,
@@ -23,6 +29,7 @@ export const defaultSettings: AppSettings = {
   autostart: false,
   zeroRetention: true,
   fallbackProvider: null,
+  allowCloudFallback: false,
   realtime: { enabled: false, provider: "mistral", model: "voxtral-mini-transcribe-realtime-2602" },
   sync: { enabled: false, endpoint: "", username: "" },
 };
@@ -34,23 +41,5 @@ export const browserBootstrap: BootstrapData = {
   dictionary: [],
   snippets: [],
   version: "dev",
-  providers: [
-    {
-      id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1",
-      transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions",
-      models: ["mistralai/voxtral-mini-transcribe", "mistralai/voxtral-small-24b-2507"],
-      supportsRealtime: false, requiresApiKey: true,
-    },
-    {
-      id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1",
-      transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions",
-      models: ["voxtral-mini-latest", "voxtral-mini-transcribe-realtime-2602"],
-      supportsRealtime: true, requiresApiKey: true,
-    },
-    {
-      id: "local", name: "Local / vLLM", baseUrl: "http://localhost:8000/v1",
-      transcriptionPath: "/audio/transcriptions", chatPath: "/chat/completions",
-      models: ["mistralai/Voxtral-Mini-3B-2507"], supportsRealtime: true, requiresApiKey: false,
-    },
-  ],
+  providers,
 };

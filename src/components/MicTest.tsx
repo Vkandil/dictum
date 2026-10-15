@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../lib/i18n";
 import { Check, Mic, Square } from "lucide-react";
 import { listenDictation, startMicTest, stopMicTest } from "../lib/bridge";
 import { Button } from "./Ui";
@@ -13,7 +14,8 @@ const MAX_TEST_MS = 15000;
  * "is this device actually picking me up?", which otherwise can only be discovered by losing a
  * real dictation. Takes the device id directly so an unsaved selection can be tried out.
  */
-export default function MicTest({ deviceId, label = "Test microphone", onError }: { deviceId: string | null; label?: string; onError?: (error: unknown) => void }) {
+export default function MicTest({ deviceId, label, onError }: { deviceId: string | null; label?: string; onError?: (error: unknown) => void }) {
+  const { t } = useI18n();
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
   const [peak, setPeak] = useState(0);
@@ -58,14 +60,14 @@ export default function MicTest({ deviceId, label = "Test microphone", onError }
   const heard = peak > SIGNAL_THRESHOLD;
   return <div className="mic-test">
     <div className="mic-test-row">
-      <Button variant="secondary" onClick={() => void (testing ? stop() : start())}>{testing ? <><Square size={14} fill="currentColor" />Stop</> : <><Mic size={15} />{label}</>}</Button>
-      <div className="mic-meter" role="meter" aria-label="Microphone signal" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}>
+      <Button variant="secondary" onClick={() => void (testing ? stop() : start())}>{testing ? <><Square size={14} fill="currentColor" />{t("Stop", "Arr\u00eater")}</> : <><Mic size={15} />{label ?? t("Test microphone", "Tester le micro")}</>}</Button>
+      <div className="mic-meter" role="meter" aria-label={t("Microphone signal", "Signal du microphone")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}>
         {Array.from({ length: 12 }, (_, index) => <i key={index} className={(index + 1) / 12 <= level ? "active" : ""} />)}
       </div>
     </div>
     {error ? <p className="field-error">{error}</p> : null}
-    {!error && testing ? <p className="field-help">{heard ? "Picking you up — speak to watch the meter move." : "Say something. If the meter stays flat, try another microphone."}</p> : null}
-    {!error && !testing && heard ? <p className="field-help mic-test-ok"><Check size={13} />This microphone is working.</p> : null}
-    {!error && !testing && peak > 0 && !heard ? <p className="field-help">No sound was detected. Check that this is the right device and that Windows allows apps to use it.</p> : null}
+    {!error && testing ? <p className="field-help">{heard ? t("Picking you up — speak to watch the meter move.", "Le micro vous entend. Parlez pour voir bouger le niveau.") : t("Say something. If the meter stays flat, try another microphone.", "Parlez. Si le niveau reste nul, essayez un autre microphone.")}</p> : null}
+    {!error && !testing && heard ? <p className="field-help mic-test-ok"><Check size={13} />{t("This microphone is working.", "Ce micro fonctionne.")}</p> : null}
+    {!error && !testing && peak > 0 && !heard ? <p className="field-help">{t("No sound was detected. Check the device and Windows microphone permissions.", "Aucun son détecté. Vérifiez le micro et les autorisations de Windows.")}</p> : null}
   </div>;
 }

@@ -19,7 +19,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) { return 
 export function Toggle({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (checked: boolean) => void; label: string; description?: string; disabled?: boolean }) {
   return <div className={`toggle-row ${disabled ? "disabled" : ""}`}>
     <div><div className="toggle-label">{label}</div>{description ? <div className="toggle-description">{description}</div> : null}</div>
-    <button type="button" role="switch" aria-checked={checked} className={`switch ${checked ? "on" : ""}`} onClick={() => !disabled && onChange(!checked)} disabled={disabled}><span /></button>
+    <button type="button" role="switch" aria-label={label} aria-checked={checked} className={`switch ${checked ? "on" : ""}`} onClick={() => !disabled && onChange(!checked)} disabled={disabled}><span /></button>
   </div>;
 }
 

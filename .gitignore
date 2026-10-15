@@ -12,3 +12,4 @@ src-tauri/gen/
 *.pdb
 .secrets/
 .tmp/
+src-tauri/native-runtime/

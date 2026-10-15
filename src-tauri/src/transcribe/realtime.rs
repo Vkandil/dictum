@@ -15,14 +15,30 @@ use tokio_tungstenite::{
 pub enum RealtimeDialect {
     Mistral,
     OpenAiCompatible,
+    OpenAiCloud,
+    Deepgram,
+    Flux,
+    ElevenLabs,
+    AssemblyAi,
+    Soniox,
+    Cartesia,
+    Aws,
+    Native,
 }
 
 impl RealtimeDialect {
     pub fn for_provider(provider: &str) -> Self {
-        if provider == "mistral" {
-            Self::Mistral
-        } else {
-            Self::OpenAiCompatible
+        match provider {
+            "mistral" => Self::Mistral,
+            "openai" => Self::OpenAiCloud,
+            "deepgram" => Self::Deepgram,
+            "elevenlabs" => Self::ElevenLabs,
+            "assemblyai" => Self::AssemblyAi,
+            "soniox" => Self::Soniox,
+            "cartesia" => Self::Cartesia,
+            "aws" => Self::Aws,
+            "offline" => Self::Native,
+            _ => Self::OpenAiCompatible,
         }
     }
 }
@@ -30,22 +46,53 @@ impl RealtimeDialect {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RealtimeEvent {
     Partial(String),
+    Committed(String),
     Final(String),
     Error(String),
 }
 
 pub struct RealtimeSession {
-    audio_tx: mpsc::Sender<Vec<i16>>,
+    pub(super) audio_tx: mpsc::Sender<Vec<i16>>,
     pub events: mpsc::Receiver<RealtimeEvent>,
 }
 
 impl RealtimeSession {
+    pub async fn connect_extended(
+        endpoint: &str,
+        model: &str,
+        api_key: Option<&str>,
+        dialect: RealtimeDialect,
+        options: &super::TranscribeOpts,
+        root: &std::path::Path,
+    ) -> Result<Self> {
+        if matches!(
+            dialect,
+            RealtimeDialect::Mistral | RealtimeDialect::OpenAiCompatible
+        ) {
+            Self::connect(endpoint, model, api_key, dialect).await
+        } else {
+            let dialect = if dialect == RealtimeDialect::Deepgram && model.starts_with("flux") {
+                RealtimeDialect::Flux
+            } else {
+                dialect
+            };
+            super::live_vendors::connect(endpoint, model, api_key, dialect, options, root).await
+        }
+    }
+
     pub async fn connect(
         endpoint: &str,
         model: &str,
         api_key: Option<&str>,
         dialect: RealtimeDialect,
     ) -> Result<Self> {
+        anyhow::ensure!(
+            matches!(
+                dialect,
+                RealtimeDialect::Mistral | RealtimeDialect::OpenAiCompatible
+            ),
+            "Use connect_extended for this provider"
+        );
         let url = realtime_url(endpoint, model, dialect)?;
         let mut request = url.into_client_request()?;
         if let Some(key) = api_key {
@@ -83,6 +130,7 @@ impl RealtimeSession {
                     "target_streaming_delay_ms": 480,
                 },
             }),
+            _ => unreachable!("legacy dialect checked"),
         };
         socket
             .send(Message::Text(update.to_string().into()))
@@ -107,6 +155,7 @@ impl RealtimeSession {
                             let end = json!({"type":"input_audio.end"});
                             let _ = sink.send(Message::Text(end.to_string().into())).await;
                         }
+                        _ => unreachable!("legacy dialect checked"),
                     }
                     break;
                 }
@@ -117,6 +166,7 @@ impl RealtimeSession {
                         json!({"type":"input_audio_buffer.append","audio":audio})
                     }
                     RealtimeDialect::Mistral => json!({"type":"input_audio.append","audio":audio}),
+                    _ => unreachable!("legacy dialect checked"),
                 };
                 if sink
                     .send(Message::Text(payload.to_string().into()))
@@ -169,6 +219,7 @@ fn realtime_url(endpoint: &str, model: &str, dialect: RealtimeDialect) -> Result
             percent_encode(model)
         ),
         RealtimeDialect::OpenAiCompatible => format!("{websocket_base}/realtime"),
+        _ => anyhow::bail!("Unsupported legacy dialect"),
     };
     let parsed = url::Url::parse(&url)?;
     anyhow::ensure!(

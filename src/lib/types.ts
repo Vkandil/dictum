@@ -4,6 +4,7 @@ export type Tone = "auto" | "formal" | "casual" | "code";
 export type InjectionMode = "clipboard" | "keystroke";
 
 export interface FormattingSettings {
+  provider: string | null;
   enabled: boolean;
   model: string;
   removeFillers: boolean;
@@ -12,6 +13,10 @@ export interface FormattingSettings {
 }
 
 export interface AppSettings {
+  uiLanguage: "auto" | "en" | "fr";
+  setupVerified: boolean;
+  providerModels: Record<string, string>;
+  providerEndpoints: Record<string, string>;
   onboardingComplete: boolean;
   provider: ProviderId;
   model: string;
@@ -28,6 +33,7 @@ export interface AppSettings {
   autostart: boolean;
   zeroRetention: boolean;
   fallbackProvider: ProviderId | null;
+  allowCloudFallback: boolean;
   realtime: { enabled: boolean; provider: ProviderId; model: string };
   sync: { enabled: boolean; endpoint: string; username: string };
 }
@@ -39,6 +45,8 @@ export interface HistoryItem {
   appBundle?: string | null;
   audioMs: number;
   costUsd: number;
+  costKnown: boolean;
+  segments: unknown[];
   model: string;
   createdAt: number;
 }
@@ -67,7 +75,22 @@ export interface ProviderManifest {
   models: string[];
   supportsRealtime: boolean;
   requiresApiKey: boolean;
+  protocol?: string;
+  auth?: string;
+  validationPath?: string | null;
+  keyUrl?: string;
+  description?: string;
+  modelInfo?: ModelInfo[];
+  chatModels?: string[];
+  recommended?: boolean;
+  endpointRequired?: boolean;
 }
+
+export interface ModelInfo { id: string; name: string; languages: string[]; live: boolean; recommended: boolean }
+export interface LocalModel { id: string; name: string; engine: string; url: string; sha256: string; size: number; ramGb: number; license: string; languages: string[]; live: boolean; files: Record<string, string>; archive: boolean }
+export interface ModelStatus { model: LocalModel; installed: boolean; downloaded: number; downloading: boolean }
+export interface DownloadProgress { id: string; downloaded: number; total: number; phase: string }
+export interface ConnectionCheck { status: "ready" | "authenticated" | "saved"; message: string }
 
 export interface BootstrapData {
   settings: AppSettings;

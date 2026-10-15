@@ -96,9 +96,16 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
+            commands::import_local_model,
+            commands::local_hardware,
             commands::save_settings,
             commands::save_api_key,
             commands::validate_api_key,
+            commands::list_local_models,
+            commands::download_local_model,
+            commands::pause_local_model,
+            commands::delete_local_model,
+            commands::refresh_provider_catalog,
             commands::set_autostart,
             commands::start_mic_test,
             commands::stop_mic_test,

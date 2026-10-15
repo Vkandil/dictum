@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { browserBootstrap } from "./defaults";
-import type { AppSettings, BootstrapData, DictationState, HistoryItem, ProviderManifest } from "./types";
+import type { AppSettings, BootstrapData, DictationState, HistoryItem, ProviderManifest, ModelStatus, DownloadProgress, ConnectionCheck, LocalModel } from "./types";
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -19,10 +19,23 @@ export async function saveApiKey(provider: string, apiKey: string): Promise<void
   else await new Promise((resolve) => setTimeout(resolve, 350));
 }
 
-export async function validateApiKey(provider: string, apiKey?: string): Promise<void> {
-  if (isTauri()) await invoke("validate_api_key", { provider, apiKey: apiKey || null });
-  else await new Promise((resolve) => setTimeout(resolve, 500));
+export async function validateApiKey(provider: string, apiKey?: string, endpoint?: string, model?: string): Promise<ConnectionCheck> {
+  if (isTauri()) return invoke("validate_api_key", { provider, apiKey: apiKey || null, endpoint: endpoint || null, model: model || null });
+  return { status: provider === "offline" ? "ready" : "authenticated", message: "Preview connection" };
 }
+export async function listLocalModels(): Promise<ModelStatus[]> {
+  if (isTauri()) return invoke("list_local_models");
+  const models = (await import("../../src-tauri/catalog/local-models.json")).default as unknown as LocalModel[];
+  return models.map(model => ({ model, installed: false, downloaded: 0, downloading: false }));
+}
+export async function downloadLocalModel(id: string): Promise<void> { if (isTauri()) await invoke("download_local_model", { id }); }
+export async function pauseLocalModel(id: string): Promise<void> { if (isTauri()) await invoke("pause_local_model", { id }); }
+export async function deleteLocalModel(id: string): Promise<void> { if (isTauri()) await invoke("delete_local_model", { id }); }
+export async function listenModelProgress(handler: (event: DownloadProgress) => void): Promise<UnlistenFn> {
+  return isTauri() ? listen<DownloadProgress>("model:progress", e => handler(e.payload)) : () => undefined;
+}
+export async function refreshProviderCatalog(): Promise<ProviderManifest[]> { return isTauri() ? invoke("refresh_provider_catalog") : browserBootstrap.providers; }
+
 
 export async function setAutostart(enabled: boolean): Promise<void> {
   if (isTauri()) await invoke("set_autostart", { enabled });
@@ -91,6 +104,12 @@ export async function saveProvider(manifest: ProviderManifest): Promise<void> {
 
 export async function runSync(direction: "push" | "pull", password: string, authPassword?: string): Promise<void> {
   if (isTauri()) await invoke("run_sync", { direction, password, authPassword: authPassword || null });
+}
+export async function localHardware(): Promise<{ ramGb: number; cpuThreads: number; modelDirectory: string }> {
+  return isTauri() ? invoke("local_hardware") : { ramGb: 0, cpuThreads: navigator.hardwareConcurrency || 1, modelDirectory: "" };
+}
+export async function importLocalModel(id: string, path: string): Promise<void> {
+  if (isTauri()) await invoke("import_local_model", { id, path });
 }
 
 export async function openPermissions(kind: "microphone"): Promise<void> {

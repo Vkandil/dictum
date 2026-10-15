@@ -19,6 +19,7 @@ use crate::{autostart, hotkey, inject, keychain, sync};
 
 pub struct AppState {
     pub store: Store,
+    pub models: crate::transcribe::native::ModelManager,
     pub audio: AudioRecorder,
     pub command_mode: AtomicBool,
     pub busy: AtomicBool,
@@ -47,6 +48,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(store: Store) -> Self {
         Self {
+            models: crate::transcribe::native::ModelManager::new(store.model_dir()),
             store,
             audio: AudioRecorder::default(),
             command_mode: AtomicBool::new(false),
@@ -124,6 +126,9 @@ pub fn save_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<(), String> {
+    if state.audio.is_active() || state.busy.load(Ordering::SeqCst) {
+        return Err("Finish or cancel your dictation before changing settings.".into());
+    }
     let previous = state.store.settings().map_err(display)?;
     state.store.validate_settings(&settings).map_err(display)?;
     hotkey::check_available(&app, &previous, &settings.hotkey.combo).map_err(display)?;
@@ -167,54 +172,221 @@ pub fn save_api_key(provider: String, api_key: String) -> Result<(), String> {
     keychain::set(&provider, &api_key).map_err(display)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionCheck {
+    status: String,
+    message: String,
+}
 #[tauri::command]
 pub async fn validate_api_key(
     state: State<'_, AppState>,
     provider: String,
     api_key: Option<String>,
-) -> Result<(), String> {
-    let manifest = state.store.provider(&provider).map_err(display)?;
-    if !manifest.requires_api_key {
-        let url = format!("{}/models", manifest.base_url.trim_end_matches('/'));
-        let response = reqwest::Client::new()
-            .get(url)
-            .timeout(Duration::from_secs(3))
-            .send()
-            .await
-            .map_err(display);
-        let response = response?;
-        if !response.status().is_success() {
-            return Err(format!(
-                "local provider returned HTTP {}",
-                response.status().as_u16()
-            ));
+    endpoint: Option<String>,
+    model: Option<String>,
+) -> Result<ConnectionCheck, String> {
+    let settings = state.store.settings().map_err(display)?;
+    let mut manifest = state
+        .store
+        .provider(&provider)
+        .map_err(display)?
+        .effective(&settings);
+    if let Some(endpoint) = endpoint {
+        let u = url::Url::parse(&endpoint).map_err(display)?;
+        if !matches!(u.scheme(), "http" | "https")
+            || !u.username().is_empty()
+            || u.password().is_some()
+        {
+            return Err("Enter an HTTP(S) server address without credentials.".into());
         }
-        return Ok(());
+        manifest.base_url = endpoint.trim_end_matches('/').into();
     }
-    let key = api_key
-        .or_else(|| keychain::get(&provider).ok().flatten())
-        .context("enter an API key first")
-        .map_err(display)?;
-    let response = reqwest::Client::new()
-        .get(format!(
-            "{}/models",
-            manifest.base_url.trim_end_matches('/')
-        ))
-        .bearer_auth(&key)
-        .timeout(Duration::from_secs(8))
-        .send()
+    if manifest.protocol == "native" {
+        crate::transcribe::native::prepare(
+            state.store.model_dir(),
+            model.unwrap_or(settings.model),
+        )
         .await
         .map_err(display)?;
-    if response.status().as_u16() == 401 || response.status().as_u16() == 403 {
-        return Err("API key rejected".into());
+        return Ok(ConnectionCheck {
+            status: "ready".into(),
+            message: "The local model is ready.".into(),
+        });
+    }
+    let key = api_key.or_else(|| keychain::get(&provider).ok().flatten());
+    if manifest.requires_api_key && key.as_deref().is_none_or(str::is_empty) {
+        return Err("Enter your API key first.".into());
+    }
+    let path = manifest.validation_path.as_deref().unwrap_or("/models");
+    if path.is_empty() {
+        return Ok(ConnectionCheck {
+            status: "saved".into(),
+            message: "Connection saved. Your first dictation will verify access.".into(),
+        });
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+        .map_err(display)?;
+    let service = crate::transcribe::HttpTranscriptionProvider::new(manifest.clone(), key);
+    let response = service
+        .check_request(client.get(format!("{}{}", manifest.base_url, path)))
+        .send()
+        .await
+        .map_err(|_| {
+            "Could not reach the service. Check your connection and server address.".to_owned()
+        })?;
+    if matches!(response.status().as_u16(), 401 | 403) {
+        return Err("API key rejected. Check the key and account permissions.".into());
     }
     if !response.status().is_success() {
         return Err(format!(
-            "provider returned HTTP {}",
+            "The service returned HTTP {}. Your first dictation can test a restricted key.",
             response.status().as_u16()
         ));
     }
-    Ok(())
+    Ok(ConnectionCheck {
+        status: "authenticated".into(),
+        message: "Key accepted. The dictation test will check inference access and credits.".into(),
+    })
+}
+
+#[tauri::command]
+pub fn list_local_models(
+    state: State<'_, AppState>,
+) -> Vec<crate::transcribe::native::ModelStatus> {
+    state.models.list()
+}
+#[tauri::command]
+pub async fn download_local_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    state
+        .models
+        .download(&id, |progress| {
+            let _ = app.emit("model:progress", progress);
+        })
+        .await
+        .map_err(display)
+}
+#[tauri::command]
+pub fn pause_local_model(state: State<'_, AppState>, id: String) {
+    state.models.pause(&id);
+}
+#[tauri::command]
+pub async fn import_local_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    state
+        .models
+        .import(&id, path.into(), |progress| {
+            let _ = app.emit("model:progress", progress);
+        })
+        .await
+        .map_err(display)
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHardware {
+    ram_gb: u64,
+    cpu_threads: usize,
+    model_directory: String,
+}
+#[tauri::command]
+pub fn local_hardware(state: State<'_, AppState>) -> LocalHardware {
+    #[cfg(windows)]
+    let ram_gb = {
+        use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+        let mut memory = MEMORYSTATUSEX {
+            dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+            ..Default::default()
+        };
+        if unsafe { GlobalMemoryStatusEx(&mut memory) }.is_ok() {
+            (memory.ullTotalPhys + (1 << 30) - 1) >> 30
+        } else {
+            0
+        }
+    };
+    #[cfg(not(windows))]
+    let ram_gb = 0;
+    LocalHardware {
+        ram_gb,
+        cpu_threads: std::thread::available_parallelism().map_or(1, usize::from),
+        model_directory: state.models.root.display().to_string(),
+    }
+}
+#[tauri::command]
+pub fn delete_local_model(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let settings = state.store.settings().map_err(display)?;
+    if (settings.provider == "offline" && settings.model == id)
+        || (settings.realtime.enabled
+            && settings.realtime.provider == "offline"
+            && settings.realtime.model == id)
+    {
+        return Err("Choose another model before removing the active model.".into());
+    }
+    state.models.delete(&id).map_err(display)
+}
+#[tauri::command]
+pub async fn refresh_provider_catalog(
+    state: State<'_, AppState>,
+) -> Result<Vec<ProviderManifest>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+        .map_err(display)?;
+    let response = client
+        .get("https://openrouter.ai/api/v1/models?output_modalities=transcription")
+        .send()
+        .await
+        .map_err(|_| {
+            "The catalogue is unavailable. Your saved models remain available.".to_owned()
+        })?;
+    if !response.status().is_success() {
+        return Err("The catalogue is unavailable. Try again later.".into());
+    }
+    let body: serde_json::Value = response.json().await.map_err(display)?;
+    let mut providers = state.store.providers().map_err(display)?;
+    if let Some(provider) = providers.iter_mut().find(|p| p.id == "openrouter") {
+        for item in body["data"]
+            .as_array()
+            .ok_or("The service returned an invalid catalogue.")?
+        {
+            let Some(id) = item["id"].as_str() else {
+                continue;
+            };
+            if id.len() > 180
+                || !id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "/.-_:".contains(c))
+            {
+                continue;
+            }
+            if !provider.models.iter().any(|m| m == id) {
+                provider.models.push(id.into());
+                provider.model_info.push(crate::store::ModelInfo {
+                    id: id.into(),
+                    name: item["name"].as_str().unwrap_or(id).into(),
+                    languages: Vec::new(),
+                    live: false,
+                    recommended: false,
+                });
+            }
+        }
+    }
+    if let Some(p) = providers.iter().find(|p| p.id == "openrouter") {
+        state
+            .store
+            .cache_catalogue(&p.model_info)
+            .map_err(display)?;
+    }
+    Ok(providers)
 }
 
 /// Opens a microphone purely to show its live signal level, so the user can confirm a device
@@ -301,15 +473,15 @@ pub fn start(app: &AppHandle, state: &AppState, command_mode: bool) -> Result<()
         .store(live_typing, Ordering::SeqCst);
     let epoch = state.dictation_epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let live_tx = if settings.realtime.enabled {
-        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        let (tx, rx) = tokio::sync::mpsc::channel(128);
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
         *state.realtime_done.lock().unwrap() = Some(done_rx);
         let provider = settings.realtime.provider.clone();
-        let endpoint = if provider == "local" {
-            settings.local_endpoint.clone()
-        } else {
-            state.store.provider(&provider)?.base_url
-        };
+        let endpoint = state
+            .store
+            .provider(&provider)?
+            .effective(&settings)
+            .base_url;
         let key = keychain::get(&provider)?;
         let model = settings.realtime.model.clone();
         let realtime_app = app.clone();
@@ -429,21 +601,23 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         .into_iter()
         .map(|item| item.term)
         .collect();
-    let manifest = state.store.provider(&settings.provider)?;
+    let manifest = state
+        .store
+        .provider(&settings.provider)?
+        .effective(&settings);
     let api_key = keychain::get(&settings.provider)?;
-    if manifest.requires_api_key && api_key.is_none() {
-        anyhow::bail!(TranscribeError::InvalidKey);
-    }
     let provider = create_provider(
         manifest.clone(),
         api_key.clone(),
-        Some(&settings.local_endpoint),
+        None,
+        state.store.model_dir(),
     );
     let options = TranscribeOpts {
         model: settings.model.clone(),
         language: (settings.language != "auto").then(|| settings.language.clone()),
         biasing: dictionary.clone(),
         zero_retention: settings.zero_retention,
+        cancellation: cancellation.clone(),
     };
     if settings.realtime.enabled {
         // Wait for the realtime session to signal it's done (final transcript, error, or
@@ -451,19 +625,28 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         // can't stall the dictation indefinitely - it just falls back to batch transcription.
         let done_rx = state.realtime_done.lock().unwrap().take();
         if let Some(done_rx) = done_rx {
-            let _ = tokio::time::timeout(Duration::from_secs(4), done_rx).await;
+            let _ = tokio::time::timeout(Duration::from_secs(15), done_rx).await;
         }
     }
-    let realtime_text = state.realtime_final.lock().unwrap().take();
+    let realtime_text = state
+        .realtime_final
+        .lock()
+        .unwrap()
+        .take()
+        .filter(|_| capture.realtime_complete);
     let mut raw_parts = Vec::new();
     let mut cost = 0.0;
+    let mut cost_known = true;
+    let mut segments = Vec::new();
     let mut history_model = settings.model.clone();
     if let Some(text) = realtime_text.filter(|text| !text.trim().is_empty()) {
         raw_parts.push(text);
         history_model = settings.realtime.model.clone();
-        if settings.realtime.provider != "local" {
-            cost = capture.duration_ms as f64 / 60_000.0 * 0.006;
-        }
+        cost_known = state
+            .store
+            .provider(&settings.realtime.provider)?
+            .effective(&settings)
+            .on_device();
     }
     let used_realtime = !raw_parts.is_empty();
     let chunks = if raw_parts.is_empty() {
@@ -471,40 +654,54 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     } else {
         &[]
     };
+    if !chunks.is_empty() {
+        anyhow::ensure!(state.store.allows_batch_after_live(&settings)?, "Local live transcription failed. Cloud backup is disabled; choose a local batch model or explicitly allow cloud backup in Settings.");
+        if manifest.requires_api_key && api_key.is_none() {
+            anyhow::bail!(TranscribeError::InvalidKey);
+        }
+    }
     // Transcribe every part concurrently instead of awaiting them one at a time - a long
     // dictation with several parts no longer takes N times as long as a single request.
     // The "part X of Y" progress wording is intentionally gone: the caller already shows
     // "Turning speech into text" once, and the user shouldn't need to know internally that
     // their recording was split at all.
+    let concurrency = std::sync::Arc::new(tokio::sync::Semaphore::new(if manifest.on_device() {
+        1
+    } else {
+        3
+    }));
     let outcomes = futures_util::future::join_all(chunks.iter().map(|chunk| {
         let options = &options;
         let cancellation = &cancellation;
         let provider = provider.as_ref();
         let state = &state;
         let settings = &settings;
+        let concurrency = concurrency.clone();
         async move {
+            let _permit = tokio::select! { _ = cancellation.cancelled() => return Err(anyhow::Error::new(TranscribeError::Cancelled)), permit = concurrency.acquire_owned() => permit? };
             let primary = tokio::select! { _ = cancellation.cancelled() => return Err(TranscribeError::Cancelled.into()), result = provider.transcribe(chunk, options) => result };
             match primary {
                 Ok(value) => Ok((value, settings.model.clone(), settings.provider.clone())),
                 Err(primary_error) => {
                     if let Some(fallback_id) = &settings.fallback_provider {
-                        let fallback_manifest = state.store.provider(fallback_id)?;
+                        let fallback_manifest = state.store.provider(fallback_id)?.effective(settings);
                         let fallback_key = keychain::get(fallback_id)?;
                         if fallback_manifest.requires_api_key && fallback_key.is_none() {
                             return Err(anyhow::Error::new(primary_error)
                                 .context("transcription part failed"));
                         }
-                        let fallback_model = fallback_manifest
+                        let fallback_model = settings.provider_models.get(fallback_id).or_else(|| fallback_manifest
                             .models
                             .iter()
-                            .find(|model| *model == &settings.model)
+                            .find(|model| *model == &settings.model))
                             .or_else(|| fallback_manifest.models.first())
                             .context("fallback provider has no model")?
                             .clone();
                         let fallback = create_provider(
                             fallback_manifest,
                             fallback_key,
-                            Some(&settings.local_endpoint),
+                            None,
+                            state.store.model_dir(),
                         );
                         let mut fallback_options = options.clone();
                         fallback_options.model = fallback_model.clone();
@@ -532,15 +729,20 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         }
     }))
     .await;
-    for (chunk, outcome) in chunks.iter().zip(outcomes) {
-        let (transcript, billed_model, billed_provider) = outcome?;
+    let mut offset = 0.0;
+    for (outcome, chunk) in outcomes.into_iter().zip(chunks.iter()) {
+        let (transcript, billed_model, _billed_provider) = outcome?;
+        cost_known &= transcript.cost_usd.is_some();
+        cost += transcript.cost_usd.unwrap_or(0.0);
+        segments.extend(transcript.segments.into_iter().map(|mut segment| {
+            if let Some(object) = segment.as_object_mut() {
+                object.insert("chunkOffsetSeconds".into(), serde_json::json!(offset));
+            }
+            segment
+        }));
+        offset += chunk.duration_ms as f64 / 1000.0;
         raw_parts.push(transcript.text);
-        history_model = billed_model.clone();
-        cost += transcript.cost_usd.unwrap_or(estimated_cost(
-            chunk.duration_ms,
-            &billed_model,
-            &billed_provider,
-        ));
+        history_model = billed_model;
     }
     let raw = combine_transcript_parts(&raw_parts);
     let target = state
@@ -556,17 +758,24 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
         // formatting rewrites the whole sentence, which can't be applied word-by-word live and
         // (deleting + retyping everything at the end) is exactly what corrupted the on-screen
         // text before. AI formatting and snippets are intentionally unavailable on this path.
-        (Some(_), true) => {
+        (Some(live), true) => {
+            if live != &raw {
+                inject::live_update(live, &raw)?;
+            }
             *state.last_inserted.lock().unwrap() = Some(raw.clone());
             if settings.history.enabled {
-                state.store.insert_history(
-                    &raw,
-                    &raw,
-                    Some(&target.name),
-                    capture.duration_ms as i64,
-                    cost,
-                    &history_model,
-                )?;
+                state.store.history_details(&HistoryItem {
+                    id: 0,
+                    text: raw.clone(),
+                    raw_text: Some(raw.clone()),
+                    app_bundle: Some(target.name.clone()),
+                    audio_ms: capture.duration_ms as i64,
+                    cost_usd: cost,
+                    cost_known,
+                    segments: segments.clone(),
+                    model: history_model.clone(),
+                    created_at: 0,
+                })?;
                 state.store.purge_history(settings.history.retention_days)?;
             }
             return Ok(raw);
@@ -590,7 +799,18 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     // When a snippet fires and verbatim insertion is enabled, insert the expansion exactly as
     // configured — skip AI formatting so it can't reword an email, signature, or code block.
     let skip_formatting = snippet_fired && settings.snippets_verbatim;
+    let formatter = settings
+        .formatting
+        .provider
+        .as_deref()
+        .unwrap_or(&settings.provider);
+    let format_manifest = state.store.provider(formatter)?.effective(&settings);
+    let format_key = keychain::get(formatter)?;
     let command_mode = state.command_mode.swap(false, Ordering::SeqCst);
+    anyhow::ensure!(
+        !command_mode || format_manifest.protocol != "native",
+        "Choose an AI clean-up service in Settings before using voice commands."
+    );
     let mut replace_previous = None;
     let final_text = if command_mode {
         let assistant = expanded.to_lowercase().starts_with("ask dictum")
@@ -640,10 +860,13 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             &target.context,
             &dictionary,
             &settings.formatting,
-            FormatProvider { manifest: &manifest, api_key: api_key.as_deref(), zero_retention: settings.zero_retention },
+            FormatProvider { manifest: &format_manifest, api_key: format_key.as_deref(), zero_retention: settings.zero_retention },
             intent,
         ) => result? }
-    } else if settings.formatting.enabled && !skip_formatting {
+    } else if settings.formatting.enabled
+        && !skip_formatting
+        && format_manifest.protocol != "native"
+    {
         emit(
             app,
             DictationEvent {
@@ -659,7 +882,7 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
             &target.context,
             &dictionary,
             &settings.formatting,
-            FormatProvider { manifest: &manifest, api_key: api_key.as_deref(), zero_retention: settings.zero_retention },
+            FormatProvider { manifest: &format_manifest, api_key: format_key.as_deref(), zero_retention: settings.zero_retention },
             FormatIntent::Dictation,
         ) => result.unwrap_or(expanded.clone()) }
     } else {
@@ -675,14 +898,18 @@ async fn process_capture(app: &AppHandle, capture: crate::audio::AudioCapture) -
     }
     *state.last_inserted.lock().unwrap() = Some(final_text.clone());
     if settings.history.enabled {
-        state.store.insert_history(
-            &final_text,
-            &raw,
-            Some(&target.name),
-            capture.duration_ms as i64,
-            cost,
-            &history_model,
-        )?;
+        state.store.history_details(&HistoryItem {
+            id: 0,
+            text: final_text.clone(),
+            raw_text: Some(raw.clone()),
+            app_bundle: Some(target.name.clone()),
+            audio_ms: capture.duration_ms as i64,
+            cost_usd: cost,
+            cost_known,
+            segments,
+            model: history_model.clone(),
+            created_at: 0,
+        })?;
         state.store.purge_history(settings.history.retention_days)?;
     }
     Ok(final_text)
@@ -742,32 +969,60 @@ async fn run_realtime(
                 == epoch
     };
     let dialect = RealtimeDialect::for_provider(&provider);
+    let incremental = matches!(
+        dialect,
+        RealtimeDialect::Mistral | RealtimeDialect::OpenAiCompatible
+    );
+    let initial_settings = app.state::<AppState>().store.settings().unwrap_or_default();
+    let options = TranscribeOpts {
+        model: model.clone(),
+        language: (initial_settings.language != "auto").then_some(initial_settings.language),
+        biasing: app
+            .state::<AppState>()
+            .store
+            .dictionary()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|d| d.term)
+            .collect(),
+        zero_retention: initial_settings.zero_retention,
+        cancellation: cancellation.clone(),
+    };
+    let model_dir = app.state::<AppState>().store.model_dir();
     let mut transcript = String::new();
     let mut finished = false;
     let mut attempt = 0u8;
     loop {
-        let session =
-            match RealtimeSession::connect(&endpoint, &model, key.as_deref(), dialect).await {
-                Ok(session) => session,
-                Err(_) => {
-                    let notice = if attempt == 0 {
-                        "Realtime unavailable — recording normally"
-                    } else {
-                        "Realtime connection lost — recording normally"
-                    };
-                    emit(
-                        &app,
-                        DictationEvent {
-                            phase: "listening",
-                            level: None,
-                            message: Some(notice),
-                            text: None,
-                            error_code: None,
-                        },
-                    );
-                    break;
-                }
-            };
+        let session = match RealtimeSession::connect_extended(
+            &endpoint,
+            &model,
+            key.as_deref(),
+            dialect,
+            &options,
+            &model_dir,
+        )
+        .await
+        {
+            Ok(session) => session,
+            Err(_) => {
+                let notice = if attempt == 0 {
+                    "Realtime unavailable — recording normally"
+                } else {
+                    "Realtime connection lost — recording normally"
+                };
+                emit(
+                    &app,
+                    DictationEvent {
+                        phase: "listening",
+                        level: None,
+                        message: Some(notice),
+                        text: None,
+                        error_code: None,
+                    },
+                );
+                break;
+            }
+        };
         attempt += 1;
         let tx = session.sender();
         let mut events = session.events;
@@ -803,6 +1058,18 @@ async fn run_realtime(
                             emit(&app, DictationEvent { phase: "listening", level: None, message: None, text: Some(&transcript), error_code: None });
                         }
                     }
+                    Some(RealtimeEvent::Committed(text)) => {
+                        transcript = format!("{prefix}{text}");
+                        if !owns_dictation(&app) { return; }
+                        let state = app.state::<AppState>();
+                        if state.realtime_live_typing.load(Ordering::SeqCst) {
+                            let mut live=state.realtime_live.lock().unwrap();
+                            let previous=live.clone().unwrap_or_default();
+                            if let Some(suffix)=transcript.strip_prefix(&previous) {
+                                if !suffix.is_empty() { *live=Some(transcript.clone()); drop(live); let _=inject::type_only(suffix); }
+                            }
+                        }
+                    }
                     Some(RealtimeEvent::Final(text)) => {
                         transcript = format!("{prefix}{text}");
                         if !owns_dictation(&app) { return; }
@@ -831,7 +1098,7 @@ async fn run_realtime(
                 }
             }
         }
-        if finished || attempt >= REALTIME_MAX_ATTEMPTS {
+        if finished || !incremental || attempt >= REALTIME_MAX_ATTEMPTS {
             if !finished {
                 let notice = match &last_error {
                     Some(reason) => format!(
@@ -873,18 +1140,6 @@ async fn run_realtime(
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
     let _ = done.send(());
-}
-
-fn estimated_cost(audio_ms: u64, model: &str, provider: &str) -> f64 {
-    if provider == "local" {
-        return 0.0;
-    }
-    audio_ms as f64 / 60_000.0
-        * if model.contains("small-24b") {
-            0.006
-        } else {
-            0.003
-        }
 }
 
 #[tauri::command]
@@ -1194,12 +1449,20 @@ mod tests {
 
     #[test]
     fn local_transcription_has_no_inference_cost() {
-        assert_eq!(estimated_cost(60_000, "any-model", "local"), 0.0);
+        assert!(crate::store::builtin_providers()
+            .iter()
+            .find(|p| p.id == "offline")
+            .unwrap()
+            .on_device());
     }
 
     #[test]
-    fn hosted_default_uses_duration_estimate() {
-        assert_eq!(estimated_cost(60_000, "voxtral-mini", "openrouter"), 0.003);
+    fn hosted_cost_is_unknown_without_provider_receipt() {
+        assert!(!crate::store::builtin_providers()
+            .iter()
+            .find(|p| p.id == "openrouter")
+            .unwrap()
+            .on_device());
     }
 
     #[test]

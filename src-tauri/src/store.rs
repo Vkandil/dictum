@@ -18,6 +18,8 @@ pub struct HotkeySettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FormattingSettings {
+    #[serde(default)]
+    pub provider: Option<String>,
     pub enabled: bool,
     pub model: String,
     pub remove_fillers: bool,
@@ -52,6 +54,10 @@ pub struct SyncSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
+    pub ui_language: String,
+    pub setup_verified: bool,
+    pub provider_models: std::collections::HashMap<String, String>,
+    pub provider_endpoints: std::collections::HashMap<String, String>,
     pub onboarding_complete: bool,
     pub provider: String,
     pub model: String,
@@ -68,6 +74,7 @@ pub struct AppSettings {
     pub autostart: bool,
     pub zero_retention: bool,
     pub fallback_provider: Option<String>,
+    pub allow_cloud_fallback: bool,
     pub realtime: RealtimeSettings,
     pub sync: SyncSettings,
 }
@@ -75,6 +82,10 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            ui_language: "auto".into(),
+            setup_verified: false,
+            provider_models: Default::default(),
+            provider_endpoints: Default::default(),
             onboarding_complete: false,
             provider: "openrouter".into(),
             model: "mistralai/voxtral-mini-transcribe".into(),
@@ -88,6 +99,7 @@ impl Default for AppSettings {
             microphone_id: None,
             injection: "clipboard".into(),
             formatting: FormattingSettings {
+                provider: None,
                 enabled: true,
                 model: "mistralai/ministral-8b".into(),
                 remove_fillers: true,
@@ -104,6 +116,7 @@ impl Default for AppSettings {
             autostart: false,
             zero_retention: true,
             fallback_provider: None,
+            allow_cloud_fallback: false,
             realtime: RealtimeSettings {
                 enabled: false,
                 provider: "mistral".into(),
@@ -143,6 +156,8 @@ pub struct HistoryItem {
     pub app_bundle: Option<String>,
     pub audio_ms: i64,
     pub cost_usd: f64,
+    pub cost_known: bool,
+    pub segments: Vec<serde_json::Value>,
     pub model: String,
     pub created_at: i64,
 }
@@ -158,6 +173,71 @@ pub struct ProviderManifest {
     pub models: Vec<String>,
     pub supports_realtime: bool,
     pub requires_api_key: bool,
+    #[serde(default = "openai_protocol")]
+    pub protocol: String,
+    #[serde(default = "bearer_auth")]
+    pub auth: String,
+    #[serde(default)]
+    pub validation_path: Option<String>,
+    #[serde(default)]
+    pub key_url: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub model_info: Vec<ModelInfo>,
+    #[serde(default)]
+    pub chat_models: Vec<String>,
+    #[serde(default)]
+    pub recommended: bool,
+    #[serde(default)]
+    pub endpoint_required: bool,
+}
+
+fn openai_protocol() -> String {
+    "openai".into()
+}
+fn bearer_auth() -> String {
+    "bearer".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfo {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub languages: Vec<String>,
+    #[serde(default)]
+    pub live: bool,
+    #[serde(default)]
+    pub recommended: bool,
+}
+
+impl ProviderManifest {
+    pub fn effective(mut self, settings: &AppSettings) -> Self {
+        if self.id == "local" {
+            self.base_url = settings.local_endpoint.clone();
+        }
+        if let Some(endpoint) = settings.provider_endpoints.get(&self.id) {
+            self.base_url = endpoint.trim_end_matches('/').into();
+        }
+        self
+    }
+    pub fn supports_live_model(&self, model: &str) -> bool {
+        self.supports_realtime
+            && (self.model_info.is_empty()
+                || self.model_info.iter().any(|m| m.id == model && m.live)
+                || self.id == "local")
+    }
+    pub fn on_device(&self) -> bool {
+        self.protocol == "native"
+            || url::Url::parse(&self.base_url).ok().is_some_and(|u| {
+                matches!(
+                    u.host_str(),
+                    Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
+                )
+            })
+    }
 }
 
 /// Repairs settings combinations that are no longer valid, so an existing install (or a synced
@@ -172,44 +252,8 @@ fn normalize(mut settings: AppSettings) -> AppSettings {
 }
 
 pub fn builtin_providers() -> Vec<ProviderManifest> {
-    vec![
-        ProviderManifest {
-            id: "openrouter".into(),
-            name: "OpenRouter".into(),
-            base_url: "https://openrouter.ai/api/v1".into(),
-            transcription_path: "/audio/transcriptions".into(),
-            chat_path: "/chat/completions".into(),
-            models: vec![
-                "mistralai/voxtral-mini-transcribe".into(),
-                "mistralai/voxtral-small-24b-2507".into(),
-            ],
-            supports_realtime: false,
-            requires_api_key: true,
-        },
-        ProviderManifest {
-            id: "mistral".into(),
-            name: "Mistral".into(),
-            base_url: "https://api.mistral.ai/v1".into(),
-            transcription_path: "/audio/transcriptions".into(),
-            chat_path: "/chat/completions".into(),
-            models: vec![
-                "voxtral-mini-latest".into(),
-                "voxtral-mini-transcribe-realtime-2602".into(),
-            ],
-            supports_realtime: true,
-            requires_api_key: true,
-        },
-        ProviderManifest {
-            id: "local".into(),
-            name: "Local / vLLM".into(),
-            base_url: "http://localhost:8000/v1".into(),
-            transcription_path: "/audio/transcriptions".into(),
-            chat_path: "/chat/completions".into(),
-            models: vec!["mistralai/Voxtral-Mini-3B-2507".into()],
-            supports_realtime: true,
-            requires_api_key: false,
-        },
-    ]
+    serde_json::from_str(include_str!("../catalog/providers.json"))
+        .expect("validated provider catalogue")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,7 +315,28 @@ impl Store {
              CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY, text TEXT NOT NULL, raw_text TEXT, app_bundle TEXT, audio_ms INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL DEFAULT 0, model TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL);
              CREATE INDEX IF NOT EXISTS idx_history_created ON history(created_at DESC);"
         )?;
+        let connection = self.connection()?;
+        let mut stmt = connection.prepare("PRAGMA table_info(history)")?;
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get(1))?
+            .collect::<rusqlite::Result<_>>()?;
+        if !columns.iter().any(|c| c == "cost_known") {
+            connection.execute(
+                "ALTER TABLE history ADD COLUMN cost_known INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
+        if !columns.iter().any(|c| c == "segments_json") {
+            connection.execute(
+                "ALTER TABLE history ADD COLUMN segments_json TEXT NOT NULL DEFAULT '[]'",
+                [],
+            )?;
+        }
         Ok(())
+    }
+
+    pub fn model_dir(&self) -> PathBuf {
+        self.path.parent().expect("data directory").join("models")
     }
 
     pub fn settings(&self) -> Result<AppSettings> {
@@ -281,13 +346,31 @@ impl Store {
                 row.get(0)
             })
             .optional()?;
-        let settings: AppSettings = if let Some(raw) = raw {
-            serde_json::from_str(&raw).unwrap_or_default()
+        let settings: AppSettings = if let Some(raw) = &raw {
+            serde_json::from_str(raw).unwrap_or_default()
         } else if self.config_path.exists() {
             serde_json::from_slice(&fs::read(&self.config_path)?).unwrap_or_default()
         } else {
             AppSettings::default()
         };
+        let mut settings = settings;
+        if settings.formatting.provider.is_none()
+            && settings.provider != "offline"
+            && settings.provider != "local"
+        {
+            settings.formatting.provider = Some(settings.provider.clone());
+        }
+        if settings.onboarding_complete {
+            let previous = raw
+                .as_deref()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
+            if previous
+                .as_ref()
+                .is_some_and(|s| s.get("setupVerified").is_none())
+            {
+                settings.setup_verified = true;
+            }
+        }
         Ok(normalize(settings))
     }
 
@@ -364,10 +447,14 @@ impl Store {
         self.connection()?.execute("INSERT INTO history(text,raw_text,app_bundle,audio_ms,cost_usd,model,created_at) VALUES(?1,?2,?3,?4,?5,?6,unixepoch())", params![text, raw_text, app, audio_ms, cost, model])?;
         Ok(())
     }
+    pub fn history_details(&self, details: &HistoryItem) -> Result<()> {
+        self.connection()?.execute("INSERT INTO history(text,raw_text,app_bundle,audio_ms,cost_usd,model,created_at,cost_known,segments_json) VALUES(?1,?2,?3,?4,?5,?6,unixepoch(),?7,?8)",params![details.text,details.raw_text,details.app_bundle,details.audio_ms,details.cost_usd,details.model,details.cost_known,serde_json::to_string(&details.segments)?])?;
+        Ok(())
+    }
     pub fn history(&self, search: &str) -> Result<Vec<HistoryItem>> {
         let connection = self.connection()?;
         let pattern = format!("%{}%", search);
-        let mut statement = connection.prepare("SELECT id,text,raw_text,app_bundle,audio_ms,cost_usd,model,created_at FROM history WHERE text LIKE ?1 ORDER BY created_at DESC LIMIT 1000")?;
+        let mut statement = connection.prepare("SELECT id,text,raw_text,app_bundle,audio_ms,cost_usd,model,created_at,cost_known,segments_json FROM history WHERE text LIKE ?1 ORDER BY created_at DESC LIMIT 1000")?;
         let items = statement
             .query_map([pattern], |row| {
                 Ok(HistoryItem {
@@ -379,6 +466,8 @@ impl Store {
                     cost_usd: row.get(5)?,
                     model: row.get(6)?,
                     created_at: row.get(7)?,
+                    cost_known: row.get(8)?,
+                    segments: serde_json::from_str(&row.get::<_, String>(9)?).unwrap_or_default(),
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
@@ -417,6 +506,23 @@ impl Store {
     }
     pub fn providers(&self) -> Result<Vec<ProviderManifest>> {
         let mut providers = builtin_providers();
+        if let Ok(bytes) = fs::read(self.provider_dir.join("catalogue-cache.json")) {
+            if let Ok(cached) = serde_json::from_slice::<Vec<ModelInfo>>(&bytes) {
+                if let Some(provider) = providers.iter_mut().find(|p| p.id == "openrouter") {
+                    for m in cached {
+                        if !provider.models.contains(&m.id)
+                            && m.id.len() < 180
+                            && m.id
+                                .chars()
+                                .all(|c| c.is_ascii_alphanumeric() || "/.-_:".contains(c))
+                        {
+                            provider.models.push(m.id.clone());
+                            provider.model_info.push(m);
+                        }
+                    }
+                }
+            }
+        }
         for entry in fs::read_dir(&self.provider_dir)? {
             let path = entry?.path();
             if path.extension().and_then(|e| e.to_str()) == Some("json") {
@@ -430,6 +536,11 @@ impl Store {
             }
         }
         Ok(providers)
+    }
+    pub fn cache_catalogue(&self, models: &[ModelInfo]) -> Result<()> {
+        let file = self.provider_dir.join("catalogue-cache.json");
+        fs::write(file, serde_json::to_vec(models)?)?;
+        Ok(())
     }
     pub fn provider(&self, id: &str) -> Result<ProviderManifest> {
         self.providers()?
@@ -495,19 +606,39 @@ impl Store {
             settings.history.retention_days > 0,
             "history retention must be positive"
         );
-        let provider = self.provider(&settings.provider)?;
+        let provider = self.provider(&settings.provider)?.effective(settings);
         if let Some(fallback) = &settings.fallback_provider {
             anyhow::ensure!(
                 fallback != &settings.provider,
                 "fallback must differ from primary provider"
             );
-            self.provider(fallback)?;
+            let backup = self.provider(fallback)?.effective(settings);
+            anyhow::ensure!(
+                !provider.on_device() || backup.on_device() || settings.allow_cloud_fallback,
+                "Allow cloud backup explicitly before sending local audio to another service"
+            );
+        }
+        if let Some(id) = &settings.formatting.provider {
+            self.provider(id)?;
+        }
+        anyhow::ensure!(
+            matches!(settings.ui_language.as_str(), "auto" | "en" | "fr"),
+            "unsupported interface language"
+        );
+        for endpoint in settings.provider_endpoints.values() {
+            let parsed = url::Url::parse(endpoint)?;
+            anyhow::ensure!(
+                matches!(parsed.scheme(), "http" | "https")
+                    && parsed.username().is_empty()
+                    && parsed.password().is_none(),
+                "server address must be HTTP(S) without credentials"
+            );
         }
         if settings.realtime.enabled {
             let realtime = self.provider(&settings.realtime.provider)?;
             anyhow::ensure!(
-                realtime.supports_realtime,
-                "selected provider does not support realtime"
+                realtime.supports_live_model(&settings.realtime.model),
+                "selected model does not support realtime"
             );
             anyhow::ensure!(
                 !settings.realtime.model.trim().is_empty(),
@@ -533,6 +664,16 @@ impl Store {
         }
         Ok(())
     }
+    pub fn allows_batch_after_live(&self, settings: &AppSettings) -> Result<bool> {
+        if !settings.realtime.enabled {
+            return Ok(true);
+        }
+        let live = self
+            .provider(&settings.realtime.provider)?
+            .effective(settings);
+        let batch = self.provider(&settings.provider)?.effective(settings);
+        Ok(!live.on_device() || batch.on_device() || settings.allow_cloud_fallback)
+    }
 }
 
 fn validate_manifest(manifest: &ProviderManifest) -> Result<()> {
@@ -544,6 +685,9 @@ fn validate_manifest(manifest: &ProviderManifest) -> Result<()> {
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
         "invalid provider id"
     );
+    if manifest.protocol == "native" {
+        return Ok(());
+    }
     let url = url::Url::parse(&manifest.base_url)?;
     anyhow::ensure!(
         matches!(url.scheme(), "http" | "https"),
@@ -585,6 +729,82 @@ mod tests {
         let s = AppSettings::default();
         assert!(!s.history.store_audio);
         assert!(s.zero_retention);
+    }
+    #[test]
+    fn local_backup_requires_explicit_cloud_consent_and_live_model_capability() {
+        let (store, directory) = test_store();
+        let mut settings = AppSettings {
+            provider: "offline".into(),
+            model: "whisper-small".into(),
+            fallback_provider: Some("groq".into()),
+            ..AppSettings::default()
+        };
+        assert!(store.validate_settings(&settings).is_err());
+        settings.allow_cloud_fallback = true;
+        assert!(store.validate_settings(&settings).is_ok());
+        settings.realtime.enabled = true;
+        settings.realtime.provider = "openai".into();
+        settings.realtime.model = "whisper-1".into();
+        settings.hotkey.mode = "toggle".into();
+        assert!(store.validate_settings(&settings).is_err());
+        settings.realtime.model = "gpt-live-transcribe".into();
+        assert!(store.validate_settings(&settings).is_ok());
+        settings.provider = "groq".into();
+        settings.realtime.provider = "offline".into();
+        settings.realtime.model = "nemotron-streaming".into();
+        settings.allow_cloud_fallback = false;
+        assert!(!store.allows_batch_after_live(&settings).unwrap());
+        settings.allow_cloud_fallback = true;
+        assert!(store.allows_batch_after_live(&settings).unwrap());
+        fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
+    fn old_settings_migrate_without_losing_provider_and_history_charges_are_unknown() {
+        let (store, directory) = test_store();
+        let mut old = serde_json::to_value(AppSettings::default()).unwrap();
+        old["onboardingComplete"] = serde_json::json!(true);
+        old["provider"] = serde_json::json!("mistral");
+        old["model"] = serde_json::json!("voxtral-mini-latest");
+        old.as_object_mut().unwrap().remove("setupVerified");
+        old.as_object_mut().unwrap().remove("uiLanguage");
+        old["formatting"]
+            .as_object_mut()
+            .unwrap()
+            .remove("provider");
+        store
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO settings(key,value) VALUES('app',?1)",
+                [old.to_string()],
+            )
+            .unwrap();
+        let settings = store.settings().unwrap();
+        assert_eq!(settings.provider, "mistral");
+        assert_eq!(settings.formatting.provider.as_deref(), Some("mistral"));
+        assert!(settings.setup_verified);
+        store
+            .insert_history("old", "old", None, 2000, 0.123, "old-model")
+            .unwrap();
+        assert!(!store.history("").unwrap()[0].cost_known);
+        store
+            .history_details(&HistoryItem {
+                id: 0,
+                text: "new".into(),
+                raw_text: None,
+                app_bundle: None,
+                audio_ms: 2000,
+                cost_usd: 0.01,
+                cost_known: true,
+                segments: vec![serde_json::json!({"start":1.2,"end":2.0})],
+                model: "new-model".into(),
+                created_at: 0,
+            })
+            .unwrap();
+        let history = store.history("new").unwrap();
+        assert!(history[0].cost_known);
+        assert_eq!(history[0].segments[0]["start"], 1.2);
+        fs::remove_dir_all(directory).unwrap();
     }
     #[test]
     fn provider_ids_are_restricted() {

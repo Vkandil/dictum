@@ -1,5 +1,9 @@
+pub mod aws;
 mod generic;
+mod live_vendors;
+pub mod native;
 pub mod realtime;
+mod vendors;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -16,6 +20,7 @@ pub struct TranscribeOpts {
     pub language: Option<String>,
     pub biasing: Vec<String>,
     pub zero_retention: bool,
+    pub cancellation: tokio_util::sync::CancellationToken,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -23,6 +28,8 @@ pub struct Transcript {
     pub text: String,
     pub cost_usd: Option<f64>,
     pub language: Option<String>,
+    #[serde(default)]
+    pub segments: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Error)]
@@ -57,6 +64,7 @@ impl TranscribeError {
     }
 }
 
+#[allow(clippy::double_must_use)] // async_trait 0.1 emits this attribute on its boxed future.
 #[async_trait]
 pub trait TranscriptionProvider: Send + Sync {
     async fn transcribe(
@@ -72,12 +80,16 @@ pub fn create_provider(
     manifest: ProviderManifest,
     api_key: Option<String>,
     local_endpoint: Option<&str>,
+    model_dir: std::path::PathBuf,
 ) -> Box<dyn TranscriptionProvider> {
     let mut manifest = manifest;
     if manifest.id == "local" {
         if let Some(endpoint) = local_endpoint {
             manifest.base_url = endpoint.trim_end_matches('/').to_string();
         }
+    }
+    if manifest.protocol == "native" {
+        return Box::new(native::NativeProvider::new(model_dir));
     }
     Box::new(HttpTranscriptionProvider::new(manifest, api_key))
 }

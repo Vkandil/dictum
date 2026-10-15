@@ -14,9 +14,9 @@ use crate::store::ProviderManifest;
 const TRANSCRIPTION_TIMEOUT: Duration = Duration::from_secs(90);
 
 pub struct HttpTranscriptionProvider {
-    manifest: ProviderManifest,
-    api_key: Option<String>,
-    client: Client,
+    pub(super) manifest: ProviderManifest,
+    pub(super) api_key: Option<String>,
+    pub(super) client: Client,
 }
 
 impl HttpTranscriptionProvider {
@@ -37,13 +37,18 @@ impl HttpTranscriptionProvider {
         audio: &AudioChunk,
         opts: &TranscribeOpts,
     ) -> Result<Transcript, TranscribeError> {
-        if self.manifest.id == "openrouter" {
-            if opts.model.contains("voxtral-small") {
+        if self.manifest.protocol == "openrouter" || self.manifest.id == "openrouter" {
+            if opts.model == "mistralai/voxtral-small-24b-2507" {
                 return self.openrouter_quality(audio, opts).await;
             }
             self.openrouter_json(audio, opts).await
-        } else {
+        } else if matches!(
+            self.manifest.protocol.as_str(),
+            "openai" | "cohere" | "whispercpp"
+        ) {
             self.multipart(audio, opts).await
+        } else {
+            self.vendor_request(audio, opts).await
         }
     }
 
@@ -86,15 +91,18 @@ impl HttpTranscriptionProvider {
         let raw = response.text().await.map_err(network)?;
         map_status(status, &raw)?;
         let value: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|_| TranscribeError::InvalidResponse(raw.clone()))?;
+            .map_err(|_| TranscribeError::InvalidResponse("Invalid transcription JSON.".into()))?;
         let text = value
             .pointer("/choices/0/message/content")
             .and_then(|v| v.as_str())
-            .ok_or(TranscribeError::InvalidResponse(raw))?;
+            .ok_or(TranscribeError::InvalidResponse(
+                "Missing transcription text.".into(),
+            ))?;
         Ok(Transcript {
             text: text.trim().to_string(),
             cost_usd: value.pointer("/usage/cost").and_then(|v| v.as_f64()),
             language: None,
+            segments: Vec::new(),
         })
     }
 
@@ -109,21 +117,54 @@ impl HttpTranscriptionProvider {
             .map_err(|e| TranscribeError::InvalidResponse(e.to_string()))?;
         let mut form = multipart::Form::new()
             .part("file", file)
-            .text("model", opts.model.clone());
+            .text("model", opts.model.clone())
+            .text("response_format", "json");
         if let Some(language) = &opts.language {
-            form = form.text("language", language.clone());
+            if opts.model == "gpt-transcribe" {
+                form = form.text("languages[]", language.clone());
+            } else {
+                form = form.text("language", language.clone());
+            }
         }
-        if !opts.biasing.is_empty() {
-            let field = bias_field(&self.manifest.id);
+        if opts.model == "gpt-4o-transcribe-diarize" {
+            form = form.text("chunking_strategy", "auto");
+        } else if opts.model == "gpt-transcribe" {
+            for word in &opts.biasing {
+                form = form.text("keywords[]", word.clone());
+            }
+        } else if self.manifest.id == "mistral" {
+            for word in &opts.biasing {
+                form = form.text("context_bias[]", word.clone());
+            }
+        } else if !opts.biasing.is_empty() {
+            let field = if self.manifest.protocol == "whispercpp" {
+                "initial_prompt"
+            } else {
+                bias_field(&self.manifest.id)
+            };
             form = form.text(field, opts.biasing.join(","));
         }
         let request = self.authorize(self.client.post(self.url()).multipart(form));
         parse_response(request.send().await.map_err(network)?).await
     }
 
-    fn authorize(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    pub fn check_request(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        self.authorize(request)
+    }
+
+    pub(super) fn authorize(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        let request = if self.manifest.protocol == "cartesia" {
+            request.header("Cartesia-Version", "2025-04-16")
+        } else {
+            request
+        };
         match &self.api_key {
-            Some(key) if !key.is_empty() => request.bearer_auth(key),
+            Some(key) if !key.is_empty() => match self.manifest.auth.as_str() {
+                "token" => request.header("Authorization", format!("Token {key}")),
+                "raw" => request.header("Authorization", key),
+                "bearer" => request.bearer_auth(key),
+                header => request.header(header, key),
+            },
             _ => request,
         }
     }
@@ -145,9 +186,10 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
     ) -> Result<Transcript, TranscribeError> {
         let mut delay = 180;
         for attempt in 0..3 {
-            match self.request(audio, opts).await {
+            let result = tokio::select! { _ = opts.cancellation.cancelled() => return Err(TranscribeError::Cancelled), result = self.request(audio, opts) => result };
+            match result {
                 Err(error) if retryable(&error) && attempt < 2 => {
-                    sleep(Duration::from_millis(delay)).await;
+                    tokio::select! { _ = opts.cancellation.cancelled() => return Err(TranscribeError::Cancelled), _ = sleep(Duration::from_millis(delay)) => {} };
                     delay *= 2;
                 }
                 result => return result,
@@ -169,10 +211,18 @@ fn openrouter_body(audio: &AudioChunk, opts: &TranscribeOpts) -> serde_json::Val
         body["language"] = json!(language);
     }
     if !opts.biasing.is_empty() {
-        body["prompt"] = json!(opts.biasing.join(", "));
+        body["provider"]["options"] = json!({
+            "groq": {"prompt": opts.biasing.join(", ")},
+            "openai": {"prompt": opts.biasing.join(", "), "keywords": opts.biasing},
+            "mistral": {"context_bias": opts.biasing},
+            "azure": {"phraseList": {"phrases": opts.biasing}},
+            "elevenlabs": {"keyterms": opts.biasing},
+            "assemblyai": {"keyterms_prompt": opts.biasing},
+        });
     }
     if opts.zero_retention {
-        body["provider"] = json!({"zdr":true,"data_collection":"deny"});
+        body["provider"]["zdr"] = json!(true);
+        body["provider"]["data_collection"] = json!("deny");
     }
     body
 }
@@ -203,14 +253,16 @@ struct Response {
     text: String,
     language: Option<String>,
     usage: Option<Usage>,
+    #[serde(default)]
+    segments: Vec<serde_json::Value>,
 }
 
 async fn parse_response(response: reqwest::Response) -> Result<Transcript, TranscribeError> {
     let status = response.status();
     let raw = response.text().await.map_err(network)?;
     map_status(status, &raw)?;
-    let response: Response =
-        serde_json::from_str(&raw).map_err(|_| TranscribeError::InvalidResponse(raw))?;
+    let response: Response = serde_json::from_str(&raw)
+        .map_err(|_| TranscribeError::InvalidResponse("Missing transcription text.".into()))?;
     if response.text.trim().is_empty() {
         return Err(TranscribeError::InvalidResponse("empty transcript".into()));
     }
@@ -218,10 +270,11 @@ async fn parse_response(response: reqwest::Response) -> Result<Transcript, Trans
         text: response.text.trim().into(),
         cost_usd: response.usage.and_then(|u| u.cost),
         language: response.language,
+        segments: response.segments,
     })
 }
 
-fn map_status(status: StatusCode, body: &str) -> Result<(), TranscribeError> {
+pub(super) fn map_status(status: StatusCode, body: &str) -> Result<(), TranscribeError> {
     match status.as_u16() {
         200..=299 => Ok(()),
         401 | 403 => Err(TranscribeError::InvalidKey),
@@ -245,11 +298,12 @@ fn safe_error(raw: &str) -> String {
         })
         .unwrap_or_else(|| "provider request failed".into())
 }
-fn network(error: reqwest::Error) -> TranscribeError {
+pub(super) fn network(error: reqwest::Error) -> TranscribeError {
     TranscribeError::Network(if error.is_timeout() {
         "request timed out".into()
     } else {
-        error.to_string()
+        "Could not reach the transcription service. Check your connection and server address."
+            .into()
     })
 }
 
@@ -263,6 +317,7 @@ mod tests {
             language: Some("fr".into()),
             biasing: vec!["Dictum".into()],
             zero_retention: true,
+            cancellation: tokio_util::sync::CancellationToken::new(),
         }
     }
 
@@ -281,7 +336,7 @@ mod tests {
         assert_eq!(body["input_audio"]["data"], STANDARD.encode(b"RIFF-test"));
         assert_eq!(body["provider"]["zdr"], true);
         assert_eq!(body["provider"]["data_collection"], "deny");
-        assert_eq!(body["prompt"], "Dictum");
+        assert_eq!(body["provider"]["options"]["groq"]["prompt"], "Dictum");
     }
 
     #[test]

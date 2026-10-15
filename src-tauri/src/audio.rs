@@ -1,4 +1,5 @@
 use std::io::Cursor;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -20,6 +21,7 @@ pub struct AudioChunk {
 pub struct AudioCapture {
     pub chunks: Vec<AudioChunk>,
     pub duration_ms: u64,
+    pub realtime_complete: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -38,6 +40,7 @@ struct ActiveRecording {
     channels: usize,
     started: Instant,
     whisper_mode: bool,
+    realtime_complete: Arc<AtomicBool>,
 }
 
 #[derive(Clone)]
@@ -48,6 +51,7 @@ struct LiveCapture {
     channels: usize,
     sample_rate: u32,
     realtime: Option<tokio::sync::mpsc::Sender<Vec<i16>>>,
+    realtime_complete: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
@@ -129,6 +133,8 @@ impl AudioRecorder {
             bail!("unsupported microphone sample format: {format:?}");
         }
         let thread_samples = samples.clone();
+        let realtime_complete = Arc::new(AtomicBool::new(true));
+        let thread_complete = realtime_complete.clone();
         let (stop_tx, stop_rx) = mpsc::channel();
         let (finished_tx, finished_rx) = mpsc::sync_channel(1);
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
@@ -140,6 +146,7 @@ impl AudioRecorder {
                 channels,
                 sample_rate,
                 realtime: live_tx,
+                realtime_complete: thread_complete,
             };
             let result = match format {
                 SampleFormat::F32 => build_f32_stream(&device, &config, live),
@@ -173,6 +180,7 @@ impl AudioRecorder {
             sample_rate,
             channels,
             started: Instant::now(),
+            realtime_complete,
             whisper_mode,
         });
         Ok(())
@@ -210,6 +218,7 @@ impl AudioRecorder {
         Ok(AudioCapture {
             chunks,
             duration_ms: elapsed_ms,
+            realtime_complete: recording.realtime_complete.load(Ordering::SeqCst),
         })
     }
 
@@ -233,7 +242,9 @@ fn report_level<T>(data: &[T], convert: impl Fn(&T) -> f32, capture: &LiveCaptur
             .into_iter()
             .map(|v| (v.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
             .collect();
-        let _ = tx.try_send(live);
+        if tx.try_send(live).is_err() {
+            capture.realtime_complete.store(false, Ordering::SeqCst);
+        }
     }
     if let Ok(mut last) = capture.last_level.lock() {
         if last.elapsed() >= Duration::from_millis(45) {

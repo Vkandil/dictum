@@ -13,6 +13,6 @@ describe("privacy-preserving defaults", () => {
   });
 
   it("ships interchangeable providers", () => {
-    expect(browserBootstrap.providers.map((provider) => provider.id)).toEqual(["openrouter", "mistral", "local"]);
+    expect(browserBootstrap.providers.map((provider) => provider.id)).toEqual(expect.arrayContaining(["openrouter", "mistral", "local", "offline", "openai", "groq", "deepgram", "elevenlabs", "assemblyai", "soniox"]));
   });
 });

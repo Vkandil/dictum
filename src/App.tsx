@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { I18nProvider, resolveLocale } from "./lib/i18n";
 import Sidebar, { type Page } from "./components/Sidebar";
-import { bootstrap, listenDictation, listenSettingsNavigation, windowLabel } from "./lib/bridge";
+import { saveSettings, bootstrap, listenDictation, listenSettingsNavigation, windowLabel } from "./lib/bridge";
 import type { BootstrapData } from "./lib/types";
 import Dictionary from "./routes/Dictionary";
 import History from "./routes/History";
@@ -45,12 +46,13 @@ export default function App() {
   </div></div>;
   if (!data) return <div className="app-loader"><div className="brand-mark pulse"><img src={dictumLogo} alt="Dictum" /></div></div>;
   const previewDashboard = !windowLabel().startsWith("main") ? false : !('__TAURI_INTERNALS__' in window) && new URLSearchParams(location.search).has("preview");
-  if (!data.settings.onboardingComplete && !previewDashboard) return <Onboarding initial={data.settings} devices={data.devices} apiKeyHints={data.apiKeyHints} onComplete={reload} />;
-  return <div className="shell"><Sidebar page={page} onNavigate={setPage} /><main className="content">
-    {page === "home" ? <Home settings={data.settings} onSaved={reload} /> : null}
+  if (!data.settings.onboardingComplete && !previewDashboard) return <Onboarding providers={data.providers} initial={data.settings} devices={data.devices} apiKeyHints={data.apiKeyHints} onComplete={reload} />;
+  return <I18nProvider language={data.settings.uiLanguage}><div className="shell"><Sidebar page={page} onNavigate={setPage} /><main className="content">
+    {!data.settings.setupVerified ? <div className="setup-incomplete" role="status"><span>{resolveLocale(data.settings.uiLanguage) === "fr" ? "Terminez votre configuration avec une dictée de test." : "Finish setup with a successful test dictation."}</span><button className="button secondary" onClick={async () => { await saveSettings({ ...data.settings, onboardingComplete: false }); await reload(); }}>{resolveLocale(data.settings.uiLanguage) === "fr" ? "Terminer la configuration" : "Finish setup"}</button></div> : null}
+    {page === "home" ? <Home providers={data.providers} settings={data.settings} onSaved={reload} /> : null}
     {page === "history" ? <History refreshToken={refresh} onDictionaryChanged={reload} /> : null}
     {page === "dictionary" ? <Dictionary terms={data.dictionary} reload={reload} liveMode={data.settings.realtime.enabled} /> : null}
     {page === "shortcuts" ? <Snippets snippets={data.snippets} reload={reload} liveMode={data.settings.realtime.enabled} /> : null}
     {page === "settings" ? <Settings key={JSON.stringify(data.settings)} initial={data.settings} providers={data.providers} devices={data.devices} apiKeyHints={data.apiKeyHints} onSaved={reload} /> : null}
-  </main></div>;
+  </main></div></I18nProvider>;
 }

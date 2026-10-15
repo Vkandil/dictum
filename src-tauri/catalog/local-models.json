@@ -1,0 +1,294 @@
+[
+  {
+    "id": "whisper-tiny",
+    "name": "Whisper Tiny",
+    "engine": "whisper",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-tiny.bin",
+    "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+    "size": 77691713,
+    "ramGb": 1,
+    "license": "MIT",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "model": "ggml-tiny.bin"
+    },
+    "archive": false
+  },
+  {
+    "id": "whisper-base",
+    "name": "Whisper Base",
+    "engine": "whisper",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.bin",
+    "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+    "size": 147951465,
+    "ramGb": 2,
+    "license": "MIT",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "model": "ggml-base.bin"
+    },
+    "archive": false
+  },
+  {
+    "id": "whisper-small",
+    "name": "Whisper Small",
+    "engine": "whisper",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin",
+    "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+    "size": 487601967,
+    "ramGb": 3,
+    "license": "MIT",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "model": "ggml-small.bin"
+    },
+    "archive": false
+  },
+  {
+    "id": "whisper-turbo",
+    "name": "Whisper Large v3 Turbo",
+    "engine": "whisper",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo.bin",
+    "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+    "size": 1624555275,
+    "ramGb": 5,
+    "license": "MIT",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "model": "ggml-large-v3-turbo.bin"
+    },
+    "archive": false
+  },
+  {
+    "id": "whisper-turbo-q5",
+    "name": "Whisper Turbo (compact)",
+    "engine": "whisper",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
+    "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+    "size": 574041195,
+    "ramGb": 3,
+    "license": "MIT",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "model": "ggml-large-v3-turbo-q5_0.bin"
+    },
+    "archive": false
+  },
+  {
+    "id": "whisper-large",
+    "name": "Whisper Large v3",
+    "engine": "whisper",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3.bin",
+    "sha256": "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+    "size": 3095033483,
+    "ramGb": 7,
+    "license": "MIT",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "model": "ggml-large-v3.bin"
+    },
+    "archive": false
+  },
+  {
+    "id": "parakeet-v3",
+    "name": "Parakeet v3",
+    "engine": "parakeet",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
+    "sha256": "5793d0fd397c5778d2cf2126994d58e9d56b1be7c04d13c7a15bb1b4eafb16bf",
+    "size": 487170055,
+    "ramGb": 3,
+    "license": "CC-BY-4.0",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "nl",
+      "it",
+      "pt"
+    ],
+    "live": false,
+    "files": {
+      "encoder": "encoder.int8.onnx",
+      "decoder": "decoder.int8.onnx",
+      "joiner": "joiner.int8.onnx",
+      "tokens": "tokens.txt"
+    },
+    "archive": true
+  },
+  {
+    "id": "qwen3-asr-0.6b",
+    "name": "Qwen3-ASR 0.6B",
+    "engine": "qwen",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2",
+    "sha256": "393f8a14e2f5fb96746aaab342997a40641001fbd5bf9592a080a8329178ee96",
+    "size": 878702423,
+    "ramGb": 4,
+    "license": "Apache-2.0",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "ar",
+      "hi",
+      "ko",
+      "ru"
+    ],
+    "live": false,
+    "files": {
+      "encoder": "encoder.int8.onnx",
+      "decoder": "decoder.int8.onnx",
+      "frontend": "conv_frontend.onnx",
+      "tokenizer": "tokenizer"
+    },
+    "archive": true
+  },
+  {
+    "id": "nemotron-streaming",
+    "name": "Nemotron 3.5 Live",
+    "engine": "nemotron",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-320ms-int8-2026-06-11.tar.bz2",
+    "sha256": "5f311142337a5c161e92d49f7a3009d8607d3836f39d610bff5307c74d1d2c53",
+    "size": 475272949,
+    "ramGb": 3,
+    "license": "OpenMDW-1.1",
+    "languages": [
+      "en",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "it",
+      "nl",
+      "ja",
+      "zh",
+      "hi"
+    ],
+    "live": true,
+    "files": {
+      "encoder": "encoder.int8.onnx",
+      "decoder": "decoder.int8.onnx",
+      "joiner": "joiner.int8.onnx",
+      "tokens": "tokens.txt"
+    },
+    "archive": true
+  },
+  {
+    "id": "moonshine-tiny",
+    "name": "Moonshine Tiny English",
+    "engine": "moonshine",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2",
+    "sha256": "d5fe6ec4334fef36255b2a4010412cad4c007e33103fec62fb5d17cad88086f2",
+    "size": 107600538,
+    "ramGb": 1,
+    "license": "MIT",
+    "languages": [
+      "en"
+    ],
+    "live": false,
+    "files": {
+      "preprocessor": "preprocess.onnx",
+      "encoder": "encode.int8.onnx",
+      "uncached_decoder": "uncached_decode.int8.onnx",
+      "cached_decoder": "cached_decode.int8.onnx",
+      "tokens": "tokens.txt"
+    },
+    "archive": true
+  }
+]

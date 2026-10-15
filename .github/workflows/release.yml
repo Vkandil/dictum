@@ -18,6 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-native
       - run: npm ci
       - name: Configure required Windows code signing
         id: signing

@@ -1,171 +1,103 @@
 // @vitest-environment jsdom
-
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultSettings } from "../lib/defaults";
 import type { DictationState } from "../lib/types";
 import Onboarding from "./Onboarding";
-
-// Mirrors Tauri's event API: several components can listen at once (the onboarding step and the
-// microphone tester both do), each gets every event, and unlistening removes only its own
-// handler. Modelling this as a single slot let a second listener silently replace the first.
 const bridge = vi.hoisted(() => {
   const listeners: ((state: DictationState) => void)[] = [];
-  return {
-    listeners,
-    listenHandler: (state: DictationState) => listeners.forEach((handler) => handler(state)),
-    listenDictation: vi.fn(async (handler: (state: DictationState) => void) => {
-      listeners.push(handler);
-      return () => {
-        const index = listeners.indexOf(handler);
-        if (index >= 0) listeners.splice(index, 1);
-      };
-    }),
-    cancelRecording: vi.fn(),
-    checkHotkey: vi.fn(),
-    openPermissions: vi.fn(),
-    saveApiKey: vi.fn(),
-    saveSettings: vi.fn(),
-    startRecording: vi.fn(),
-    startMicTest: vi.fn(),
-    stopMicTest: vi.fn(),
-    stopRecording: vi.fn(),
-    validateApiKey: vi.fn(),
+  return { listeners, emit: (state: DictationState) => listeners.forEach(fn => fn(state)),
+    listenDictation: vi.fn(async (fn: (s: DictationState) => void) => { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; }),
+    localHardware: vi.fn(async () => ({ ramGb: 8, cpuThreads: 4, modelDirectory: "models" })), importLocalModel: vi.fn(), listenModelProgress: vi.fn(async () => () => {}), listLocalModels: vi.fn(async () => []), downloadLocalModel: vi.fn(), pauseLocalModel: vi.fn(), deleteLocalModel: vi.fn(), refreshProviderCatalog: vi.fn(), saveProvider: vi.fn(),
+    isTauri: vi.fn(() => true), cancelRecording: vi.fn(), checkHotkey: vi.fn(), saveApiKey: vi.fn(), saveSettings: vi.fn(), startRecording: vi.fn(), startMicTest: vi.fn(), stopMicTest: vi.fn(), stopRecording: vi.fn(), validateApiKey: vi.fn(async () => ({ status: "authenticated", message: "ok" })),
   };
 });
-
 vi.mock("../lib/bridge", () => bridge);
-
-describe("onboarding", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    bridge.listeners.length = 0;
-  });
+const initial = () => ({ ...structuredClone(defaultSettings), uiLanguage: "en" as const });
+async function reachTest() {
+  fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+  await screen.findByRole("heading", { name: /your microphone/i });
+  fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+  await screen.findByRole("heading", { name: /try your first dictation/i });
+}
+describe("guided onboarding", () => {
+  beforeEach(() => { vi.clearAllMocks(); bridge.listeners.length = 0; bridge.isTauri.mockReturnValue(true); });
   afterEach(cleanup);
-
-  it("requires a validated hosted key but allows a genuinely local setup", async () => {
-    const onComplete = vi.fn();
-    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={onComplete} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-
+  it("requires a connection and does not let a local selection bypass engine readiness", async () => {
+    render(<Onboarding initial={initial()} onComplete={vi.fn()} />);
     expect(screen.getByRole("button", { name: /^continue/i })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /use a local provider/i }));
-    expect(screen.getByText(/check your microphone/i)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    await screen.findByText(/give it a voice/i);
-    fireEvent.click(screen.getByRole("button", { name: /finish setup/i }));
-
-    await waitFor(() => expect(onComplete).toHaveBeenCalled());
-    expect(bridge.saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({
-      provider: "local",
-      model: "mistralai/Voxtral-Mini-3B-2507",
-      onboardingComplete: true,
-    });
+    fireEvent.click(screen.getByRole("button", { name: /on this computer/i }));
+    expect(screen.getByRole("button", { name: /^continue/i })).toBeDisabled();
+    expect(bridge.validateApiKey).not.toHaveBeenCalled();
   });
-
-  it("can set up with Mistral alone, without an OpenRouter key", async () => {
-    // Live mode requires Mistral, so onboarding must not force an OpenRouter account on
-    // someone who only wants that.
-    const onComplete = vi.fn();
-    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={onComplete} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-
-    fireEvent.click(screen.getByRole("button", { name: /mistral/i }));
-    fireEvent.change(screen.getByLabelText(/mistral api key/i), { target: { value: "test-key" } });
-    fireEvent.click(screen.getByRole("button", { name: /validate key/i }));
-
-    await waitFor(() => expect(bridge.validateApiKey).toHaveBeenCalledWith("mistral", "test-key"));
-    expect(bridge.saveApiKey).toHaveBeenCalledWith("mistral", "test-key");
-
+  it("connects Mistral directly without an OpenRouter account", async () => {
+    render(<Onboarding initial={initial()} onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /explore other options/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^mistral/i }));
+    fireEvent.change(screen.getByLabelText(/Mistral API key/i), { target: { value: "fixture-key" } });
+    fireEvent.click(screen.getByRole("button", { name: /verify connection/i }));
+    await waitFor(() => expect(bridge.saveApiKey).toHaveBeenCalledWith("mistral", "fixture-key"));
+    expect(bridge.validateApiKey).toHaveBeenCalledWith("mistral", "fixture-key", "https://api.mistral.ai/v1", "voxtral-mini-latest");
+    expect(screen.getByRole("button", { name: /^continue/i })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    await screen.findByText(/give it a voice/i);
-    fireEvent.click(screen.getByRole("button", { name: /finish setup/i }));
-
-    await waitFor(() => expect(onComplete).toHaveBeenCalled());
-    expect(bridge.saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({
-      provider: "mistral",
-      model: "voxtral-mini-latest",
-      onboardingComplete: true,
-    });
+    await screen.findByRole("heading", { name: /your microphone/i });
+    fireEvent.click(screen.getByRole("button", { name: /^back/i }));
+    expect(screen.getByText(/key already saved/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^continue/i })).toBeEnabled();
   });
-
-  it("shows the test dictation result in its sandbox", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /use a local provider/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    await screen.findByText(/give it a voice/i);
-
-    await waitFor(() => expect(bridge.listenHandler).toBeTypeOf("function"));
-    act(() => bridge.listenHandler?.({ phase: "listening", level: 0.02 }));
-    act(() => bridge.listenHandler?.({ phase: "result", text: "Hello from Voxtral" }));
-    expect(screen.getByRole("textbox")).toHaveValue("Hello from Voxtral");
-  });
-
-  it("captures and validates a shortcut without typed syntax", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} apiKeyHints={{ openrouter: "••••••••abcd" }} onComplete={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-
-    const capture = screen.getByRole("button", { name: /record shortcut/i });
-    fireEvent.click(capture);
-    fireEvent.keyDown(capture, { code: "KeyD", ctrlKey: true, shiftKey: true });
-
-    await waitFor(() => expect(bridge.checkHotkey).toHaveBeenCalledWith("CommandOrControl+Shift+D"));
-    expect(screen.getAllByText("Ctrl + Shift + D")).toHaveLength(2);
-    expect(screen.getByText(/available and selected/i)).toBeInTheDocument();
-  });
-
-  it("keeps delayed recording errors off the shortcut page and proceeds to the trial", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} apiKeyHints={{ openrouter: "••••••••abcd" }} onComplete={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    await waitFor(() => expect(bridge.listenHandler).toBeTypeOf("function"));
-
-    act(() => bridge.listenHandler?.({ phase: "error", errorCode: "empty_audio", message: "no speech detected" }));
-    expect(screen.queryByText(/No speech was detected/i)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    await screen.findByText(/give it a voice/i);
-    expect(screen.queryByText(/No speech was detected/i)).not.toBeInTheDocument();
-  });
-
-  it("reports shortcut save failures as shortcut errors instead of microphone errors", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} apiKeyHints={{ openrouter: "••••••••abcd" }} onComplete={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    bridge.saveSettings.mockRejectedValueOnce(new Error("Le fichier spécifié est introuvable. (os error 2)"));
-
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-
-    expect(await screen.findByText(/Windows could not register this shortcut/i)).toBeInTheDocument();
-    expect(screen.queryByText(/selected microphone/i)).not.toBeInTheDocument();
-  });
-
-  it("shows live microphone activity and explains provider quota separately", async () => {
-    render(<Onboarding initial={structuredClone(defaultSettings)} onComplete={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /use a local provider/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
-    await screen.findByText(/give it a voice/i);
-    await waitFor(() => expect(bridge.listenHandler).toBeTypeOf("function"));
-
+  it("does not mark setup ready until a real dictation succeeds", async () => {
+    const complete = vi.fn();
+    render(<Onboarding initial={initial()} apiKeyHints={{ openrouter: "masked" }} onComplete={complete} />);
+    await reachTest();
+    expect(screen.getByRole("button", { name: /^start dictating/i })).toBeDisabled();
+    act(() => bridge.emit({ phase: "result", text: "Unrelated event" }));
+    expect(screen.getByRole("button", { name: /^start dictating/i })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /start test dictation/i }));
-    act(() => bridge.listenHandler?.({ phase: "listening", level: 0.04 }));
-    expect(screen.getByRole("meter", { name: /microphone signal/i })).toHaveAttribute("aria-valuenow", "57");
-
-    act(() => bridge.listenHandler?.({ phase: "error", errorCode: "quota", message: "provider quota exhausted" }));
-    expect(screen.getByText(/API key was accepted/i)).toBeInTheDocument();
+    await waitFor(() => expect(bridge.startRecording).toHaveBeenCalled());
+    act(() => bridge.emit({ phase: "result", text: "Bonjour Dictum" }));
+    expect(screen.getByLabelText("Test transcript")).toHaveValue("Bonjour Dictum");
+    fireEvent.click(screen.getByRole("button", { name: /^start dictating/i }));
+    await waitFor(() => expect(complete).toHaveBeenCalled());
+    expect(bridge.saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ onboardingComplete: true, setupVerified: true });
+  });
+  it("offers deferred setup with an explicit incomplete state", async () => {
+    const complete = vi.fn(); render(<Onboarding initial={initial()} onComplete={complete} />);
+    fireEvent.click(screen.getByRole("button", { name: /set up later/i }));
+    await waitFor(() => expect(complete).toHaveBeenCalled());
+    expect(bridge.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ onboardingComplete: true, setupVerified: false }));
+  });
+  it("captures a shortcut and keeps unrelated recording errors off its page", async () => {
+    render(<Onboarding initial={initial()} apiKeyHints={{ openrouter: "masked" }} onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^continue/i }));
+    await screen.findByRole("heading", { name: /your microphone/i });
+    const capture = screen.getByRole("button", { name: /record shortcut/i }); fireEvent.click(capture); fireEvent.keyDown(capture, { code: "KeyD", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(bridge.checkHotkey).toHaveBeenCalledWith("CommandOrControl+Shift+D"));
+    act(() => bridge.emit({ phase: "error", message: "no speech detected" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+  it("separates provider quota failures from a working microphone", async () => {
+    render(<Onboarding initial={initial()} apiKeyHints={{ openrouter: "masked" }} onComplete={vi.fn()} />);
+    await reachTest(); fireEvent.click(screen.getByRole("button", { name: /start test dictation/i }));
+    await waitFor(() => expect(bridge.startRecording).toHaveBeenCalled());
+    act(() => bridge.emit({ phase: "listening", level: 0.04 }));
+    act(() => bridge.emit({ phase: "error", errorCode: "quota", message: "provider quota exhausted" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/credits|quota/i);
     expect(screen.getByText(/microphone is working/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^start dictating/i })).toBeDisabled();
+  });
+  it("keeps local readiness after selecting an installed model", async () => {
+    const native = (await import("../../src-tauri/catalog/local-models.json")).default.find(m => m.id === "whisper-small")!;
+    bridge.listLocalModels.mockResolvedValueOnce([{ model: native, installed: true, downloaded: 0, downloading: false }] as never);
+    render(<Onboarding initial={initial()} onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /on this computer/i }));
+    const title = await screen.findByText("Whisper Small", { selector: "strong" });
+    fireEvent.click(within(title.closest("article")!).getByRole("button", { name: /selected/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^continue/i })).toBeEnabled());
+  });
+  it("supports a French setup without mixing spoken and interface language", async () => {
+    render(<Onboarding initial={{ ...initial(), uiLanguage: "fr", language: "en" }} onComplete={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: /comment voulez-vous/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /explorer les autres options/i })).toBeInTheDocument();
   });
 });

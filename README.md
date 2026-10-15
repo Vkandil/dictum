@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.3.2" src="https://img.shields.io/badge/version-1.3.2-2563EB" />
+  <img alt="Version 1.4.0" src="https://img.shields.io/badge/version-1.4.0-2563EB" />
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB" /></a>
@@ -78,7 +78,9 @@ Dictum itself has no subscription fee. Hosted providers may charge for inference
 
 ### Privacy and control
 
-- OpenRouter, Mistral, local vLLM, and custom OpenAI-compatible providers
+- OpenRouter plus direct OpenAI, Groq, Mistral, ElevenLabs, Deepgram, AssemblyAI, Soniox and enterprise providers
+- Native offline Whisper, Parakeet, Qwen, Moonshine and Nemotron models with managed downloads
+- Custom OpenAI-compatible and whisper.cpp servers
 - API keys stored in Windows Credential Manager
 - Raw audio held in memory and never written to disk
 - Optional local text history with configurable retention
@@ -94,8 +96,8 @@ For the installed application:
 - 64-bit Windows 10 or Windows 11
 - A working microphone
 - Microsoft Edge WebView2 Runtime, normally already installed on supported Windows versions
-- Internet access for a hosted provider, or access to your configured self-hosted provider
-- An OpenRouter or Mistral API key when using those hosted services
+- Internet access for hosted inference or for the initial local-model download
+- A provider API key for hosted services; no account is needed for native local models
 
 Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Server as an official 1.0 target.
 
@@ -119,16 +121,16 @@ Onboarding handles all required setup without editing a configuration file.
 
 ### 1. Connect a provider
 
-Pick the service you want to use, then paste its key and click **Validate key**:
+Two choices are visible first:
 
-- **[OpenRouter](https://openrouter.ai/keys)** — one key for many models.
-- **[Mistral](https://console.mistral.ai)** — required if you want [Live mode](#live-mode).
+- **Start easily**: connect [OpenRouter](https://openrouter.ai/keys), the recommended route with one key for multiple transcription models.
+- **On this computer**: download and verify a local model, then use it without an API key or inference bill.
 
-Either way, make sure the account has available credits or spending quota. Both are pay-as-you-go with no subscription.
+**Explore other options** opens direct provider connections, the full local catalogue and compatible-server presets. Model choices and credentials are remembered per service. The interface language (English/French/system) is independent of the spoken language.
 
-The key is stored in Windows Credential Manager under service `com.dictum.app`; it is never placed in SQLite or `config.json`.
+For a cloud connection, paste the key and click **Verify connection**. Make sure the provider account has inference credits or spending quota. A key check cannot guarantee that a particular model or paid request is available; the final dictation test verifies the complete path.
 
-You can instead choose **Use a local provider** and configure an OpenAI-compatible transcription server later — no key, and nothing leaves your machine.
+Keys are stored in Windows Credential Manager under service `com.dictum.app`, never in SQLite or `config.json`. A local model is loaded and checked before continuing. See the [local model guide](docs/local-models.md) for downloads, imports, licences and server setup.
 
 ### 2. Test the microphone
 
@@ -181,9 +183,9 @@ Instead of waiting for the transcript when you stop talking, Dictum can type you
 | Length limit | Split internally, no visible limit | None at all |
 | Shortcut behavior | Any | Press-to-toggle or double-tap only |
 
-Live mode streams audio over a WebSocket, so it needs a provider that supports it: a Mistral key, or your own local server. It cannot be combined with hold-to-talk — holding the shortcut keeps `Ctrl`/`Shift` pressed, and every character Dictum typed would arrive as a keyboard shortcut instead of text. Dictum enforces this in the interface and in settings validation, and moves you to press-to-toggle if you switch modes.
+Live mode needs a compatible model: direct Mistral, OpenAI, Deepgram/Flux, ElevenLabs, AssemblyAI, Soniox, Cartesia or Amazon Transcribe, a compatible local server, or the native Nemotron streaming model. Its connection and model are configured separately from batch transcription. It cannot be combined with hold-to-talk — holding the shortcut keeps `Ctrl`/`Shift` pressed, and every character Dictum typed would arrive as a keyboard shortcut instead of text. Dictum enforces this in the interface and in settings validation, and moves you to press-to-toggle if you switch modes.
 
-Because the text is inserted as it is recognised, there is no opportunity to rewrite the whole sentence afterwards — which is why AI formatting, snippets, and the dictionary are unavailable in Live mode. The Snippets and Dictionary pages say so while it is on.
+Because the text is inserted as it is recognised, there is no opportunity to rewrite the whole sentence afterwards — which is why AI formatting and snippet expansion are unavailable in Live mode. Vocabulary hints are sent when the selected streaming contract supports them. The Snippets and Dictionary pages say so while it is on.
 
 ### Long dictation
 
@@ -228,12 +230,17 @@ Both are unavailable in Live mode; see [Live mode](#live-mode).
 
 ## Providers
 
-| Provider | API key | Use case |
-| --- | ---: | --- |
-| OpenRouter | Required | Recommended hosted setup and default Voxtral transcription. |
-| Mistral | Required | Direct Mistral transcription and optional realtime transport. |
-| Local / vLLM | No | Self-hosted inference through an OpenAI-compatible server. |
-| Custom provider | Configurable | Another service exposing compatible transcription and chat endpoints. |
+| Provider group | Connection | Use case |
+| --- | --- | --- |
+| OpenRouter | One API key | Recommended; short model selection plus the complete STT catalogue |
+| OpenAI, Groq, Mistral | Provider key | Direct transcription presets |
+| ElevenLabs, Deepgram, AssemblyAI, Soniox | Provider key | Native batch and streaming adapters |
+| Gladia, Speechmatics, Gemini, Cohere, Rev AI, Sarvam, Cartesia | Provider key | Additional native batch contracts |
+| Azure Speech, Google Cloud Speech, Amazon Transcribe | Account credentials and region/resource | Advanced enterprise connections |
+| On this computer | No key | Native downloadable models, offline after installation |
+| My server | Optional key | OpenAI-compatible or whisper.cpp inference you run yourself |
+
+The shared catalogue lives in [providers.json](src-tauri/catalog/providers.json). **Refresh catalogue** merges OpenRouter STT discovery into a local cache; existing configurations remain available if discovery fails. Streaming capability belongs to a specific model, not just a provider name.
 
 The default hosted model is `mistralai/voxtral-mini-transcribe`.
 
@@ -257,11 +264,11 @@ Endpoint: http://localhost:8000/v1
 Model:    mistralai/Voxtral-Mini-3B-2507
 ```
 
-Start the compatible inference server, then select **Local / vLLM** in Settings and enter its endpoint and exact served model name. Dictum does not download or manage model weights.
+Start the compatible inference server, then select **My server** and enter its endpoint and exact served model name. Alternatively, **On this computer** downloads and runs managed native models without an external server. See [local models and servers](docs/local-models.md).
 
 ### Custom provider manifest
 
-The easiest method is **Settings → Provider plugins**. A manual manifest can also be based on [examples/providers/deepgram-compatible.json](examples/providers/deepgram-compatible.json):
+The easiest method is **Settings → Transcription → My server**. A manual manifest can also be based on [examples/providers/openai-compatible.json](examples/providers/openai-compatible.json):
 
 ```json
 {
@@ -344,9 +351,10 @@ Install on 64-bit Windows 10 or Windows 11:
 
 1. [Git for Windows](https://git-scm.com/download/win)
 2. [Node.js 22 LTS](https://nodejs.org/)
-3. [Rust](https://www.rust-lang.org/tools/install) 1.81 or newer using the MSVC toolchain
+3. Current stable [Rust](https://www.rust-lang.org/tools/install) using the MSVC toolchain
 4. [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**
-5. Microsoft Edge WebView2 Runtime
+5. [CMake](https://cmake.org/download/) and LLVM/libclang (needed to compile whisper.cpp bindings)
+6. Microsoft Edge WebView2 Runtime
 
 Rust can be installed from PowerShell:
 
@@ -373,7 +381,7 @@ npm ci
 npm run desktop:dev
 ```
 
-The first Rust compilation can take several minutes. Keep PowerShell open while Dictum runs; development logs appear there.
+The first Rust compilation can take several minutes and downloads the pinned native Sherpa runtime. Native runtime DLLs and licence notices are bundled by the Windows build; model weights are downloaded separately in the app. Keep PowerShell open while Dictum runs; development logs appear there.
 
 `npm run dev` starts only the browser interface with mock data. Use `npm run desktop:dev` for microphone, shortcut, tray, keychain, and insertion testing.
 
@@ -529,7 +537,7 @@ Dictum is version 1.3.2. Releases are built from a clean checkout by GitHub Acti
 
 Dictum is available under the [MIT License](LICENSE).
 
-Dictum is built with [Tauri](https://tauri.app/), [React](https://react.dev/), and Rust. Its default speech models are from the open [Voxtral](https://mistral.ai/) family by Mistral AI. Model weights and hosted services retain their own licenses and terms.
+Dictum is built with [Tauri](https://tauri.app/), [React](https://react.dev/), and Rust. The default hosted speech model is [Voxtral](https://mistral.ai/); native inference also uses whisper.cpp and sherpa-onnx. See [native notices](docs/licenses/README.md). Model weights and hosted services retain their own licenses and terms.
 
 ---
 
