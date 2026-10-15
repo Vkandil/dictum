@@ -113,6 +113,8 @@ Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Se
 
 Only download Dictum from the official GitHub repository. The release workflow produces Windows NSIS and MSI packages only.
 
+**Code signing policy:** Dictum is preparing an application to the [SignPath Foundation](https://signpath.org/) open-source signing program. The project has not yet been accepted; current downloads are not signed by SignPath Foundation. See the [code signing policy](docs/code-signing-policy.md) and [privacy policy](PRIVACY.md).
+
 If a public release has not been published yet, use [Build from source](#build-from-source).
 
 ## First run
@@ -300,7 +302,7 @@ Run `dictum-cli config-path` to print the exact SQLite location for the current 
 
 Dictum contains no analytics SDK, advertising SDK, remote font, crash reporter, or telemetry endpoint. The backend rejects raw-audio history storage. HTTP sync is allowed only on localhost; remote sync requires HTTPS.
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting and supported-version policy.
+See the [privacy policy](PRIVACY.md) for network connections and third-party services, and [SECURITY.md](SECURITY.md) for vulnerability reporting and supported-version policy.
 
 ## How it works
 

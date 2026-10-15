@@ -11,12 +11,14 @@ Security fixes target the latest stable release. Older releases may be asked to 
 | Data | Where it lives | Leaves your machine? |
 | --- | --- | --- |
 | Microphone audio | Memory only, discarded after transcription | Sent to the transcription service you configured — never to us, never to disk |
-| API keys | Windows Credential Manager | No. The app only ever reads them to authenticate your own requests |
-| Transcript history | Local SQLite database, optional and time-limited | No |
-| Dictionary and snippets | Local SQLite database | Only if *you* enable encrypted sync to a server you control |
+| API keys | Windows Credential Manager | Sent only as needed to authenticate requests to the configured endpoint |
+| Transcript history | Local SQLite database, optional and time-limited | The history database is not synced; text used in hosted transcription or AI formatting is sent to the configured service |
+| Dictionary and snippets | Local SQLite database | Supported dictionary hints can be sent with transcription/formatting; expanded snippet text may be formatted; encrypted sync is optional |
 | Usage analytics | Does not exist | There is no telemetry, no crash reporting, and no analytics of any kind |
 
 Audio is never written to disk. `history.storeAudio` is rejected by settings validation, so it cannot be turned on by editing the config file either.
+
+See [PRIVACY.md](PRIVACY.md) for the complete description, including automatic GitHub update checks, model downloads and third-party privacy policies.
 
 ## Trust boundaries
 
