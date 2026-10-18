@@ -17,6 +17,8 @@ The catalogue pins original URLs, byte sizes and SHA-256 hashes in [local-models
 
 CPU is the packaged default. Source builds can opt into `cuda` or `vulkan` for Whisper, with the matching SDK and drivers. Those builds need separate hardware validation; the normal installer does not promise GPU acceleration. `DICTUM_CPU_THREADS=1` through `8` can override the CPU thread count for diagnostics.
 
+Public Windows builds disable build-host CPU tuning and optional AVX/AVX512 instructions for Whisper, so the engine is not tied to the GitHub runner's processor. ONNX Runtime handles its own CPU dispatch. Local source builds can use optimizations for the machine on which they are compiled; performance therefore need not match the portable installer.
+
 ## Bring your own server
 
 Use **Explore other options → My server** for a server you already run. The presets configure an address and model name; they do not install or launch the external server. Change the served model name to match your server.
