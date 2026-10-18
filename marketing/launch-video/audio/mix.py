@@ -253,7 +253,7 @@ place(sfx, ding((1760, 2637)), 46.46, 0.12)
 place(sfx, impact(2.4, 110, 30, 0.7, 0.6), 48.16, 0.75)
 
 # Live mode: a soft keystroke tick for every character as it appears.
-live = [("Your", 21.76, 21.92), ("words", 21.92, 22.24), ("appear", 22.24, 22.64), ("as", 22.64, 22.8), ("you", 22.8, 22.96), ("speak.", 22.96, 23.31)]
+live = [("Your", 21.76, 21.92), ("words", 21.92, 22.32), ("appear", 22.32, 22.64), ("as", 22.64, 22.8), ("you", 22.8, 22.96), ("speak.", 22.96, 23.31)]
 for w, a, b in live:
     dur = min(b - a, 0.3)
     for k in range(len(w)):
