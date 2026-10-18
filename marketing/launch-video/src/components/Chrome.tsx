@@ -74,13 +74,12 @@ const nullStart = (i: number) => {
   return 0;
 };
 
-/** Thin retention progress bar + brand bug. */
+/** Brand bug: logo + repo URL along the top. */
 export const TopBar: React.FC = () => {
   const t = useTime();
   const show = tween(t, 9.2, 9.6) * (1 - tween(t, 34.9, 35.2));
   return (
     <>
-      <div style={{ position: "absolute", left: 0, top: 0, height: 7, width: `${Math.min(1, t / 40.6) * 100}%`, background: `linear-gradient(90deg, ${C.orange}, ${C.orangeHi})`, boxShadow: `0 0 20px ${C.orange}` }} />
       <div style={{ position: "absolute", left: 48, right: 48, top: 44, display: "flex", alignItems: "center", gap: 14, opacity: show, transform: `translateY(${(1 - show) * -20}px)` }}>
         <Logo height={40} mix={1} t={t} />
         <span style={{ fontFamily: FONT, fontWeight: 800, fontSize: 30, color: C.white, letterSpacing: "-0.03em" }}>Dictum</span>
