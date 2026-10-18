@@ -1,44 +1,30 @@
-# Publication GitHub de Dictum 1.4.0
+# Publier Dictum sur GitHub
 
-Le code et la préparation de version sont automatisés. Le workflow de livraison refuse les exécutables Windows non signés, conformément à la politique existante du projet dans [releasing.md](releasing.md). Les installateurs locaux de développement ne remplacent pas cette livraison.
+Un certificat Windows et SignPath ne sont pas nécessaires pour cette livraison. Le workflow produit des installateurs sans signature éditeur Authenticode et conserve la signature cryptographique Tauri des mises à jour. Windows peut afficher un avertissement ou bloquer ces installateurs selon sa politique.
 
-## Ce qui manque dans GitHub
+## Pour cette version
 
-Au moment de la préparation, le dépôt possède le secret `TAURI_SIGNING_PRIVATE_KEY`. Aucun secret de signature Authenticode Windows ni variable Azure Artifact Signing n'est configuré. Le contenu de la clé Tauri n'est pas accessible par l'API GitHub : sa présence ne permet pas de vérifier son mot de passe ou sa correspondance avec la clé publique embarquée. Conserver cette clé pour que les installations existantes reconnaissent les futures mises à jour.
+Le dépôt contient la version 1.4.0, le catalogue des providers et les dix modèles locaux gérés. Les poids des modèles sont téléchargés depuis Dictum après installation ; ils ne sont pas inclus dans les installateurs. Le [guide local](local-models.md) décrit les moteurs et les besoins matériels.
 
-La création ou l'achat d'une identité de signature publique et sa vérification d'identité doivent être effectués par le propriétaire du projet. Ne jamais mettre une clé privée ou un certificat dans un commit, une issue ou une conversation.
+## Les clics dans GitHub
 
-## Si tu possèdes un certificat de signature exportable PFX
+1. Ouvre [Windows CI](https://github.com/Vkandil/dictum/actions/workflows/ci.yml) et vérifie que les tests et l'audit du commit à publier sont verts.
+2. Ouvre [Windows Release](https://github.com/Vkandil/dictum/actions/workflows/release.yml), clique **Run workflow**, choisis **main**, puis lance. Si les installateurs sont déjà présents dans le brouillon et que ce build est vert, passe à l'étape suivante.
+3. Attends le succès du workflow. Sans certificat configuré, le résumé doit annoncer le mode **unsigned**. La clé Tauri existante reste obligatoire ; aucun secret de certificat Windows n'est à créer.
+4. Ouvre les [releases](https://github.com/Vkandil/dictum/releases) puis le brouillon **Dictum v1.4.0 for Windows**. Vérifie que les fichiers suivants sont présents :
+   - `Dictum_1.4.0_x64-setup.exe` : installateur recommandé ;
+   - `Dictum_1.4.0_x64_en-US.msi` : alternative MSI ;
+   - les deux fichiers `.sig`, `latest.json` et `SHA256SUMS.txt`.
+5. Télécharge l'EXE, vérifie son empreinte et teste l'installation, le lancement, une dictée et un modèle local. La [checklist Windows](windows-release-checklist.md) détaille les essais sur machines vierges. Garde les limites non vérifiées visibles dans les notes.
+6. Dans le brouillon, garde les notes qui présentent les nouveaux modèles et l'absence de signature éditeur Windows. Pour une version stable, laisse **Set as a pre-release** décoché, choisis **Set as the latest release** si proposé, puis clique **Publish release**.
+7. Vérifie que [la dernière version publique](https://github.com/Vkandil/dictum/releases/latest) est bien la 1.4.0 et que le bouton de téléchargement du README y conduit.
 
-1. Vérifie avec l'émetteur que le certificat est un certificat public de signature de code RSA, valide, avec clé privée exportable. Un certificat TLS ou un certificat auto-signé ne convient pas. Si la clé est conservée sur un token ou un HSM, utilise l'intégration de l'émetteur ; la procédure PFX ne convient pas.
-2. Ouvre [Settings → Secrets and variables → Actions](https://github.com/Vkandil/dictum/settings/secrets/actions), puis **New repository secret**.
-3. Crée `WINDOWS_CERTIFICATE`. Sa valeur doit être le contenu du fichier PFX encodé en Base64. Par exemple, dans PowerShell sur ton ordinateur :
+## Ce qui doit rester en place
 
-   ```powershell
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\chemin\certificat.pfx')) | Set-Clipboard
-   ```
+Conserve `TAURI_SIGNING_PRIVATE_KEY` et son éventuel mot de passe dans les secrets Actions. Ne remplace pas cette clé pour une nouvelle version : les installations existantes s'en servent pour vérifier les mises à jour. La clé Tauri est distincte d'un certificat reconnu par Windows.
 
-   Colle cette valeur uniquement dans le champ du secret GitHub, enregistre, puis vide le presse-papiers avec `Set-Clipboard -Value ''`.
-4. Crée `WINDOWS_CERTIFICATE_PASSWORD` avec le mot de passe du PFX.
-5. Si la clé de mise à jour Tauri possède un mot de passe, crée aussi `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` avec ce mot de passe. Si elle n'en possède pas, ce secret est facultatif. Ne remplace pas la clé de mise à jour existante.
+Les avertissements de réputation Windows ne doivent pas être confondus avec une détection antivirus nommée. Ne désactive pas Defender pour lancer Dictum ; voir [le guide Windows](windows-defender.md).
 
-## Si tu utilises Azure Artifact Signing
+## Pour les versions suivantes
 
-1. Crée ou sélectionne ton compte et ton profil de certificat public dans Azure, après vérification de ton éligibilité et de ton identité selon la [documentation Microsoft](https://learn.microsoft.com/azure/artifact-signing/faq).
-2. Crée un principal de service et accorde-lui le rôle **Artifact Signing Certificate Profile Signer** sur le profil concerné.
-3. Dans les [secrets Actions](https://github.com/Vkandil/dictum/settings/secrets/actions), ajoute `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` et `AZURE_TENANT_ID`.
-4. Dans les [variables Actions](https://github.com/Vkandil/dictum/settings/variables/actions), ajoute `ARTIFACT_SIGNING_ENDPOINT`, `ARTIFACT_SIGNING_ACCOUNT` et `ARTIFACT_SIGNING_PROFILE`, avec les valeurs exactes de ton compte Azure. Le workflow donne priorité à cette configuration lorsqu'elle est complète.
-5. Vérifie aussi le mot de passe éventuel de la clé Tauri, comme indiqué ci-dessus.
-
-Une intégration d'un autre émetteur nécessite une adaptation du workflow. Le projet documente aussi la piste [SignPath Foundation](https://signpath.org/) ; une acceptation du projet et une intégration spécifique sont nécessaires.
-
-## Construire et publier lorsque la signature est prête
-
-1. Vérifie que le dernier [Windows CI](https://github.com/Vkandil/dictum/actions/workflows/ci.yml) sur `main` est vert, pour les tests et l'audit de dépendances.
-2. Ouvre [Windows Release](https://github.com/Vkandil/dictum/actions/workflows/release.yml), clique **Run workflow**, choisis `main`, puis lance. Aucun nouveau tag manuel n'est nécessaire : l'action utilise la version `1.4.0` et complète le brouillon `v1.4.0`.
-3. Attends le succès du workflow. En cas d'échec de signature, ouvre l'étape en échec et corrige les secrets correspondants. Ne supprime pas les vérifications de signature pour contourner le problème.
-4. Dans les [releases](https://github.com/Vkandil/dictum/releases), ouvre le brouillon **Dictum v1.4.0 for Windows**. Vérifie la présence des installateurs NSIS et MSI signés, des fichiers de mise à jour Tauri et de `SHA256SUMS.txt`. Le brouillon préparé sans signature ne contient pas encore ces fichiers.
-5. Télécharge et teste les paquets sur des Windows 10 et Windows 11 vierges selon la [checklist](windows-release-checklist.md). Vérifie aussi la mise à jour depuis la version précédente, le microphone, les raccourcis, une dictée de 75 secondes, le téléchargement d'un modèle local et le mode live. Les comptes cloud réels et le GPU restent des validations distinctes.
-6. Suis les étapes de soumission Microsoft décrites dans [releasing.md](releasing.md), puis ouvre le brouillon, retire la mention de préparation et clique **Publish release** lorsque les contrôles sont terminés.
-
-Les commandes et les secrets ne remplacent pas les essais sur une machine vierge. Les validations déjà réalisées et leurs limites sont consignées dans le [bilan d'intégration](provider-implementation.fr.md).
+Incrémente la version de façon cohérente dans npm, Cargo, Tauri et les deux lockfiles, mets à jour les notes de version, pousse sur `main`, puis répète les étapes. Ne remplace pas silencieusement les installateurs d'une version publique existante. Une signature Authenticode pourra être ajoutée ultérieurement sans changer la clé de mise à jour Tauri.

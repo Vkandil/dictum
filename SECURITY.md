@@ -37,6 +37,6 @@ See [PRIVACY.md](PRIVACY.md) for the complete description, including automatic G
 
 ## Known limitations
 
-- **The already-published v1.3.1 installers are not Authenticode-signed.** The release workflow on `main` now rejects future unsigned builds and verifies the application plus both installers. Until a signed successor is published, verify v1.3.1 against `SHA256SUMS.txt`; do not disable Defender to bypass a named malware verdict. See [docs/windows-defender.md](docs/windows-defender.md).
-- **Your transcription provider sees your audio.** That is inherent to using a hosted service. For a fully offline setup, point Dictum at a local server; audio then never leaves your machine.
+- **Windows installers do not have an Authenticode publisher signature.** The release workflow verifies the declared signing mode, requires Tauri updater signatures and publishes installer checksums. Windows can warn about or block unsigned files. Verify `SHA256SUMS.txt`; do not disable Defender to bypass a named malware verdict. See [docs/windows-defender.md](docs/windows-defender.md).
+- **Your hosted transcription provider sees your audio.** Native models run on your computer; a server connection sends audio to that configured endpoint. Optional cloud AI formatting sends text separately. See [PRIVACY.md](PRIVACY.md).
 - **Local history is not encrypted at rest.** It is protected by your Windows user account, like other application data. Disable history, or shorten its retention, if that is not sufficient for your threat model.

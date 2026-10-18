@@ -29,15 +29,15 @@ The Rust suite covers audio conversion, silence trimming, whisper normalization,
 - [x] Parts are transcribed in parallel and reassembled in order; the split is never surfaced to the user.
 - [x] Live mode types at the cursor as you speak, and is prevented — in the UI and in backend validation — from pairing with hold-to-talk.
 - [x] Text history is optional and raw audio persistence is rejected by backend validation.
-- [x] The updater is restricted to signed Windows release artifacts.
+- [x] The updater verifies the existing Tauri signatures in both unsigned and Authenticode-signed Windows releases.
 - [x] Escape cancellation and optional double-tap use the keyboard listener without registering or unregistering a global shortcut from inside a shortcut callback.
-- [x] The release workflow refuses unsigned builds and verifies the Authenticode signature and timestamp of the application, NSIS installer, and MSI.
+- [x] The release workflow declares unsigned mode when no publisher certificate is configured, requires Tauri signatures, and verifies valid timestamped Authenticode signatures when publisher signing is configured.
 
 ## Manual smoke test before publishing
 
 Run these checks on a clean Windows 10 or Windows 11 user profile:
 
-1. Install the signed NSIS package and launch Dictum from the Start menu.
+1. Verify the NSIS checksum, note its declared Windows signing mode, install it and launch Dictum from the Start menu.
 2. Complete onboarding using an OpenRouter key with available credits.
 3. Select and test the intended microphone; deny and then grant desktop microphone permission once.
 4. Record and transcribe a short sentence from the onboarding test page.
@@ -51,16 +51,15 @@ Run these checks on a clean Windows 10 or Windows 11 user profile:
 12. Close to tray, pause/resume, enable launch at login, and restart Windows.
 13. Confirm History retention/deletion, Dictionary, Snippets, provider fallback, and encrypted sync.
 14. Install the MSI package in a disposable VM and verify uninstall removes the application.
-15. Update from the previous signed Dictum version and confirm the updater signature is accepted.
-16. With current Defender intelligence, scan all three signed files and launch Dictum while behavioural protection is active.
-17. On Windows 11, install and launch once with Smart App Control in enforcement mode.
+15. Update from the previous Dictum version and confirm the Tauri updater signature is accepted.
+16. With current Defender intelligence, scan the application and installers and launch Dictum while behavioural protection is active. Record detections separately from publisher warnings.
+17. Record Windows 11 Smart App Control behavior. An unsigned release may be blocked; do not claim compatibility with enforcement or disable system protection to make the test pass.
 
 ## Release artifacts
 
 A complete GitHub release contains:
 
-- Signed NSIS `.exe`
-- Signed `.msi`
-- Signed `latest.json` updater manifest and signatures
+- NSIS `.exe` and `.msi`, with their Windows publisher signing mode disclosed
+- `latest.json` updater manifest and Tauri installer signatures
 - Release notes describing user-visible changes
 - SHA-256 checksums for the installers

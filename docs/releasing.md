@@ -1,69 +1,33 @@
 # Releasing Dictum for Windows
 
-The `Windows Release` GitHub Actions workflow builds NSIS and MSI packages plus the signed Tauri updater manifest from a `v*` tag. Dictum publishes Windows artifacts only.
+The Windows Release workflow builds NSIS and MSI packages from a clean GitHub Actions checkout. It prepares a draft; publication remains a maintainer action. Windows 10/11 x64 are the supported targets.
 
-## Required updater secrets
+## Signing modes
 
-These are required for every release. They only sign the auto-updater manifest and cost nothing.
+Windows Authenticode publisher signing is optional. With no Windows certificate or Azure signing configuration, the workflow explicitly builds an **unsigned** release. Release notes and the download page disclose this status. Windows can warn about or block unsigned applications; a Tauri update signature does not establish Windows publisher reputation.
 
-- `TAURI_SIGNING_PRIVATE_KEY`: the Tauri updater private key (the contents of the minisign secret-key file). The matching public key is embedded in `src-tauri/tauri.conf.json`.
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the updater-key password, or an empty value if the key has none.
+Tauri updater signing is required in every mode:
 
-## Required Authenticode signing
+- `TAURI_SIGNING_PRIVATE_KEY`: keep the existing private key matching the public key in `src-tauri/tauri.conf.json`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: required only when that key has a password.
 
-The release workflow now refuses to publish an unsigned build. The Tauri updater signature proves an update came from Dictum, but it is not an Authenticode signature and Windows does not use it for Defender, SmartScreen, or Smart App Control.
+Do not replace the updater key for routine releases. Never commit keys or passwords.
 
-Choose one signing route below. In both cases use an RSA Public Trust code-signing identity; Smart App Control does not currently accept ECC signatures.
+If Windows publisher signing becomes available, configure either:
 
-### Route A: Azure Artifact Signing
+- `WINDOWS_CERTIFICATE` (Base64 PFX) and `WINDOWS_CERTIFICATE_PASSWORD`, for an exportable RSA code-signing certificate suitable for CI; or
+- secrets `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, plus variables `ARTIFACT_SIGNING_ENDPOINT`, `ARTIFACT_SIGNING_ACCOUNT`, `ARTIFACT_SIGNING_PROFILE`.
 
-This is Microsoft's recommended managed signing service. Public Trust is currently available to organizations in the EU (and certain other regions), while individual eligibility is more limited; check Microsoft's current [Artifact Signing FAQ](https://learn.microsoft.com/azure/artifact-signing/faq) before creating the resource.
+The workflow prioritizes a complete Azure configuration, then PFX. Incomplete credentials or a signing failure fail the build rather than silently downgrading the configured signer. Signed mode requires valid timestamped Authenticode signatures on the application, CLI and installers. The current release does not use SignPath Foundation.
 
-Create these GitHub Actions secrets:
+## Procedure
 
-- `AZURE_CLIENT_ID`
-- `AZURE_CLIENT_SECRET`
-- `AZURE_TENANT_ID`
+1. Match the version in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` and `src-tauri/tauri.conf.json`.
+2. Push to `main` and confirm Windows CI, including its dependency-audit job, succeeds for the commit being released.
+3. Open **Actions > Windows Release > Run workflow**, select `main` and run. A matching `v*` tag can also trigger the workflow. Do not reuse an existing published version.
+4. Confirm the build succeeds, its signing mode matches the release notes, and the draft contains both installers, their Tauri `.sig` files, `latest.json` and `SHA256SUMS.txt`.
+5. Download the actual GitHub assets. Verify installer hashes and Tauri signatures against the existing updater public key. Exercise packaged native inference and perform the [Windows checklist](windows-release-checklist.md). Record outstanding acceptance checks rather than claiming unperformed tests passed.
+6. Review the draft notes: local model weights download separately; installers are unsigned in the current release; GPU, paid-cloud accounts and clean Windows installation/update coverage must be described accurately.
+7. Publish the reviewed draft and mark the intended stable version as latest. Verify `/releases/latest` and the updater manifest target that version.
 
-Create these GitHub Actions repository variables:
-
-- `ARTIFACT_SIGNING_ENDPOINT`, for example `https://neu.codesigning.azure.net`
-- `ARTIFACT_SIGNING_ACCOUNT`
-- `ARTIFACT_SIGNING_PROFILE`
-
-The service principal needs the **Artifact Signing Certificate Profile Signer** role for that certificate profile. The workflow installs the Tauri-documented `artifact-signing-cli` integration at a pinned version and lets Tauri sign the application before it is put inside either installer.
-
-### Route B: exportable Authenticode PFX
-
-Use this route only when the certificate provider gives you an exportable `.pfx` suitable for CI. Many newly issued certificates keep their key in an HSM or hardware token and therefore need that provider's remote-signing integration instead.
-
-- `WINDOWS_CERTIFICATE`: a Base64-encoded Authenticode `.pfx` certificate.
-- `WINDOWS_CERTIFICATE_PASSWORD`: the password for that certificate.
-
-The workflow rejects expired certificates, certificates without a private key or code-signing EKU, and non-RSA certificates.
-
-For an eligible non-commercial open-source project, [SignPath Foundation](https://signpath.org/) is a possible no-cost route. It has its own application and CI integration, so adapt the workflow only after the project is accepted. Do not put a self-signed certificate in the workflow: it changes the displayed publisher but is not publicly trusted by Windows.
-
-Back up the updater private key securely. Losing it prevents existing installations from trusting future automatic updates. Never commit updater keys, certificates, API keys, or passwords.
-
-## Release procedure
-
-1. Confirm the same version is present in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`.
-2. Complete [windows-release-checklist.md](windows-release-checklist.md).
-3. Merge to `main` and confirm the `Windows CI` workflow passes, including its dependency-audit job.
-4. Create and push an annotated tag matching the version, for example `v1.2.0`.
-5. Confirm the workflow reports a valid Authenticode signer and timestamp for `dictum.exe`, the NSIS installer, and the MSI. A missing or invalid signature fails the workflow.
-6. Confirm the draft GitHub release contains the NSIS, MSI, updater manifest, and signature artifacts.
-7. Submit the signed application and both signed installers to the [Microsoft Security Intelligence sample portal](https://www.microsoft.com/wdsi/filesubmission) as a software developer. Select the clean/incorrectly detected option and retain the submission IDs.
-8. Download the artifacts onto clean Windows 10 and Windows 11 VMs and repeat the install, launch, long-dictation, update, and uninstall checks. Include a Windows 11 VM with Smart App Control enabled.
-9. Verify the generated `SHA256SUMS.txt` file and add user-facing release notes.
-10. Publish the draft release.
-
-See [windows-defender.md](windows-defender.md) for the difference between SmartScreen, Smart App Control, and a Defender antivirus detection, plus the false-positive response procedure.
-
-Example tag commands:
-
-```powershell
-git tag -a v1.2.0 -m "Dictum 1.2.0"
-git push origin v1.2.0
-```
+See the [French click-by-click guide](github-publication.fr.md), [code signing policy](code-signing-policy.md) and [Windows security guide](windows-defender.md). Investigate any named antivirus detection and submit false positives to Microsoft; do not tell users to disable antivirus protection.
