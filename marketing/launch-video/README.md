@@ -1,22 +1,28 @@
 # Dictum launch video
 
-A 42-second, 1080×1350 (4:5), 60 fps motion-design launch film for X, built with [Remotion](https://www.remotion.dev/).
+A 50-second, 1080×1350 (4:5), 60 fps motion-design launch film for X, built with [Remotion](https://www.remotion.dev/).
 Every animation is keyed to the word timings of the ElevenLabs v4 voice-over (`public/vo.mp3`).
 
 ## Structure
 
 | Time | Scene | File |
 | --- | --- | --- |
-| 0.0–5.5 s | Hook: subscription cards roll to $0, FREE stamp | `src/scenes/Hook.tsx` |
-| 5.5–8.1 s | 100% open source counter over real `audio.rs` code | `src/scenes/OpenSource.tsx` |
-| 8.0–9.3 s | The voice's waveform folds into the logo | `src/scenes/Meet.tsx` |
-| 9.2–14.1 s | Shortcut keycaps, recording HUD, paste into chat / mail / code | `src/scenes/Shortcut.tsx` |
-| 14.1–18.0 s | 3× faster than typing, keyboard falls apart | `src/scenes/Speed.tsx` |
-| 18.0–21.9 s | Fillers explode, grammar fixes itself | `src/scenes/Cleanup.tsx` |
-| 21.9–26.4 s | Live mode, words typed as they are spoken | `src/scenes/Live.tsx` |
-| 26.4–32.0 s | OpenRouter key → Dictum onboarding → price → local mode | `src/scenes/Setup.tsx` |
-| 32.0–35.3 s | No telemetry, audio never touches the disk | `src/scenes/Privacy.tsx` |
-| 35.1–41.8 s | Logo, chips, GitHub star, call to action | `src/scenes/Outro.tsx` |
+| 0.0–4.4 s | Hook: Wispr Flow + a wall of 21 paid speech-to-text apps, struck out by a FREE stamp | `src/scenes/Hook.tsx` |
+| 4.3–7.5 s | 100% open source counter, Download for Windows button | `src/scenes/OpenSource.tsx` |
+| 7.4–8.7 s | The voice's waveform folds into the logo | `src/scenes/Meet.tsx` |
+| 8.6–13.6 s | Shortcut keycaps, recording HUD, paste into chat / mail / code | `src/scenes/Shortcut.tsx` |
+| 13.6–15.9 s | 3× faster than typing | `src/scenes/Speed.tsx` |
+| 15.9–21.0 s | Fillers and hesitations explode, grammar fixes itself | `src/scenes/Cleanup.tsx` |
+| 20.9–23.5 s | Live mode, words typed as they are spoken | `src/scenes/Live.tsx` |
+| 23.5–28.0 s | Snippets: configure "my email", then watch it expand in a reply | `src/scenes/Snippets.tsx` |
+| 28.0–31.3 s | Dictionary: misheard names and jargon corrected from your vocabulary | `src/scenes/Dictionary.tsx` |
+| 31.3–36.1 s | History: every dictation, searched, stored only on your PC | `src/scenes/History.tsx` |
+| 36.1–41.9 s | OpenRouter key → Dictum onboarding → price → local mode | `src/scenes/Setup.tsx` |
+| 42.0–43.3 s | No telemetry | `src/scenes/Privacy.tsx` |
+| 43.2–50.0 s | Logo, chips, GitHub star, call to action | `src/scenes/Outro.tsx` |
+
+Some scenes were authored against the first voice-over take and carry a constant time shift
+(`useTime() ± offset`, noted in each file's header) instead of being retimed by hand.
 
 Shared pieces live in `src/components/`: the logo (bars measured from `logos/Dictum_png.png`), a faithful copy
 of the recording HUD from `src/routes/Overlay.tsx`, keycaps, the Windows 11 window frame, captions and background.

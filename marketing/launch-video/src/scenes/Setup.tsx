@@ -5,7 +5,7 @@ import { C, FONT, MONO } from "../theme";
 import { Pointer } from "../components/Pointer";
 import { inExpo, inOut, lerp, rand, springAt, tween, useTime } from "../util";
 
-// 26.4 → 32.05 s. "Setup? Grab an OpenRouter key, paste it. Done. Pennies an hour. Or go fully local."
+// 36.1 → 41.85 s (scene authored at -9.76 s). "Setup? Grab an OpenRouter key, paste it. Done. Pennies an hour. Or go fully local."
 
 const Browser: React.FC<{ t: number }> = ({ t }) => {
   const created = t > 27.58;
@@ -103,7 +103,8 @@ const Onboarding: React.FC<{ t: number }> = ({ t }) => {
 };
 
 export const Setup: React.FC = () => {
-  const t = useTime();
+  // Authored against an earlier take; shift onto this voice-over.
+  const t = useTime() - 9.76;
   if (t < 26.35 || t > 32.15) return null;
   const exit = tween(t, 31.9, 32.1, 0, 1, inExpo);
 

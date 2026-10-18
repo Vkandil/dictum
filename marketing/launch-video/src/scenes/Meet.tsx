@@ -4,9 +4,10 @@ import { C, FONT, MONO } from "../theme";
 import { Logo } from "../components/Logo";
 import { inExpo, inOut, level, tween, useTime } from "../util";
 
-// 8.0 → 9.3 s. "Meet Dictum." The voice's own waveform folds into the logo.
+// 7.4 → 8.7 s (scene authored at +0.6 s). "Meet Dictum." The voice's own waveform folds into the logo.
 export const Meet: React.FC = () => {
-  const t = useTime();
+  // Authored against an earlier take; shift onto this voice-over.
+  const t = useTime() + 0.6;
   if (t < 7.95 || t > 9.4) return null;
   const enter = tween(t, 7.98, 8.2);
   const mix = tween(t, 8.32, 8.75, 0, 1, inOut);

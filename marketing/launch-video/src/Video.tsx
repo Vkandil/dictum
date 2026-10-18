@@ -8,6 +8,9 @@ import { Shortcut } from "./scenes/Shortcut";
 import { Speed } from "./scenes/Speed";
 import { Cleanup } from "./scenes/Cleanup";
 import { Live } from "./scenes/Live";
+import { Snippets } from "./scenes/Snippets";
+import { Dictionary } from "./scenes/Dictionary";
+import { History } from "./scenes/History";
 import { Setup } from "./scenes/Setup";
 import { Privacy } from "./scenes/Privacy";
 import { Outro } from "./scenes/Outro";
@@ -22,6 +25,9 @@ export const DictumLaunch: React.FC<{ audio: string }> = ({ audio }) => (
     <Speed />
     <Cleanup />
     <Live />
+    <Snippets />
+    <Dictionary />
+    <History />
     <Setup />
     <Privacy />
     <Outro />

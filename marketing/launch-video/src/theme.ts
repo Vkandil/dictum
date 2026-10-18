@@ -24,4 +24,4 @@ export const MONO = "'DM Mono', ui-monospace, monospace";
 export const W = 1080;
 export const H = 1350;
 export const FPS = 60;
-export const DURATION_S = 41.8;
+export const DURATION_S = 50.0;

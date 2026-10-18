@@ -4,19 +4,20 @@ import { Check, Mic } from "lucide-react";
 import { C, FONT, MONO } from "../theme";
 import { inExpo, inOut, rand, springAt, tween, useTime } from "../util";
 
-// 17.95 → 21.9 s. "Your uhs, your ums, gone. Grammar? Fixed."
+// 15.85 → 21.0 s. "Your uhs, your ums, and all hesitations, gone. Grammar? Fixed."
 type Tok = { raw: string; fixed?: string; filler?: number; typo?: boolean };
 const TOKENS: Tok[] = [
   { raw: "so", fixed: "So", typo: true },
-  { raw: "um", filler: 19.04 },
+  { raw: "um", filler: 16.88 },
   { raw: "i", fixed: "I", typo: true },
   { raw: "think" },
+  { raw: "like", filler: 17.84 },
   { raw: "we" },
   { raw: "should" },
-  { raw: "uh", filler: 18.24 },
+  { raw: "uh", filler: 16.16 },
   { raw: "ship" },
   { raw: "the" },
-  { raw: "the", filler: 19.3 },
+  { raw: "the", filler: 17.95 },
   { raw: "update" },
   { raw: "tomorow", fixed: "tomorrow.", typo: true },
 ];
@@ -29,15 +30,15 @@ const measure = (s: string) => {
   return ctx!.measureText(s).width;
 };
 
-const GONE = 19.84;
-const GRAMMAR = 20.48;
-const FIXED = 21.28;
+const GONE = 18.88;
+const GRAMMAR = 19.6;
+const FIXED = 20.32;
 
 export const Cleanup: React.FC = () => {
   const t = useTime();
-  if (t < 17.9 || t > 22.0) return null;
-  const enter = springAt(t, 17.92, { damping: 15, stiffness: 180 });
-  const exit = tween(t, 21.82, 22.0, 0, 1, inExpo);
+  if (t < 15.8 || t > 21.1) return null;
+  const enter = springAt(t, 15.84, { damping: 15, stiffness: 180 });
+  const exit = tween(t, 20.84, 21.02, 0, 1, inExpo);
   const collapse = tween(t, GONE + 0.05, GONE + 0.4, 0, 1, inOut);
   const fixed = tween(t, FIXED - 0.04, FIXED + 0.22, 0, 1, inOut);
   const wavy = tween(t, GRAMMAR - 0.05, GRAMMAR + 0.3) * (1 - fixed);
@@ -97,7 +98,7 @@ export const Cleanup: React.FC = () => {
       </div>
       {polished ? (
         <div style={{ position: "absolute", left: 0, right: 0, top: 880, display: "flex", justifyContent: "center", gap: 16 }}>
-          {["fillers removed", "grammar fixed"].map((c, i) => {
+          {["hesitations removed", "grammar fixed"].map((c, i) => {
             const s = springAt(t, FIXED + 0.1 + i * 0.1, { damping: 12, stiffness: 240 });
             return (
               <div key={c} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: MONO, fontSize: 25, color: "#94d4a4", padding: "13px 22px", borderRadius: 999, background: "#2d493566", border: "1.5px solid #78a68466", opacity: Math.min(1, s * 1.5), transform: `scale(${0.7 + 0.3 * s})` }}>

@@ -5,25 +5,25 @@ import { WORDS } from "../timeline";
 import { Hud } from "../components/Hud";
 import { inExpo, level, springAt, tween, useTime } from "../util";
 
-// 21.9 → 26.45 s. "And in Live mode, your words appear as you speak."
-// Words 51..56 are typed on screen exactly as they are spoken.
-const FIRST = 51;
-const LAST = 56;
-const LINES = [[51, 52], [53, 54], [55, 56]];
+// 20.9 → 23.55 s. "Live mode? Your words appear as you speak."
+// Words 52..57 are typed on screen exactly as they are spoken.
+const FIRST = 52;
+const LAST = 57;
+const LINES = [[52, 53], [54, 55], [56, 57]];
 
 export const Live: React.FC = () => {
   const t = useTime();
-  if (t < 21.85 || t > 26.5) return null;
-  const enter = tween(t, 21.88, 22.1);
-  const exit = tween(t, 26.28, 26.48, 0, 1, inExpo);
-  const pill = springAt(t, 22.2, { damping: 10, stiffness: 220 });
+  if (t < 20.85 || t > 23.6) return null;
+  const enter = tween(t, 20.86, 21.05);
+  const exit = tween(t, 23.38, 23.56, 0, 1, inExpo);
+  const pill = springAt(t, 20.92, { damping: 10, stiffness: 220 });
   const dot = 0.5 + 0.5 * Math.sin(t * 9);
 
   // characters revealed per word, spread over the word's spoken duration
   const reveal = (i: number) => {
     const [word, ws] = WORDS[i];
-    const next = i < LAST ? WORDS[i + 1][1] : ws + 0.45;
-    const dur = Math.min(next - ws, 0.38);
+    const next = i < LAST ? WORDS[i + 1][1] : ws + 0.35;
+    const dur = Math.min(next - ws, 0.3);
     return Math.max(0, Math.min(word.length, Math.ceil(((t - ws + 0.03) / dur) * word.length)));
   };
   let lastActive = -1;
@@ -63,10 +63,10 @@ export const Live: React.FC = () => {
         ))}
       </div>
 
-      <div style={{ position: "absolute", left: 0, right: 0, top: 930, display: "flex", justifyContent: "center", opacity: tween(t, 22.4, 22.7) }}>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 930, display: "flex", justifyContent: "center", opacity: tween(t, 21.1, 21.35) }}>
         <Hud phase="listening" level={level(t)} t={t} scale={1.9} width={430} text={liveText || "Listening"} />
       </div>
-      <div style={{ position: "absolute", left: 0, right: 0, top: 1068, textAlign: "center", fontFamily: MONO, fontSize: 21, letterSpacing: "0.08em", color: "#ffffff66", opacity: tween(t, 22.6, 22.9) }}>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 1068, textAlign: "center", fontFamily: MONO, fontSize: 21, letterSpacing: "0.08em", color: "#ffffff66", opacity: tween(t, 21.3, 21.55) }}>
         LIVE MODE USES A MISTRAL KEY OR A LOCAL SERVER
       </div>
     </AbsoluteFill>

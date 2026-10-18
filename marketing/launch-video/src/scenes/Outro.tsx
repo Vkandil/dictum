@@ -7,12 +7,14 @@ import { Logo } from "../components/Logo";
 import { Pointer } from "../components/Pointer";
 import { inOut, lerp, level, rand, springAt, tween, useTime } from "../util";
 
-// 35.15 → end. "Dictum. Free, open source. Star it on GitHub and stop paying to talk."
+// 43.2 → end (scene authored at -8.08 s). "Dictum. Free, open source. Star it on GitHub and stop paying to talk."
 const GH = "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z";
 const CLICK = 38.36;
 
 export const Outro: React.FC = () => {
-  const t = useTime();
+  // Authored against an earlier take; shift onto this voice-over.
+  const now = useTime();
+  const t = now - 8.08;
   if (t < 35.1) return null;
   const mix = tween(t, 35.15, 35.55, 0, 1, inOut);
   const word = tween(t, 35.3, 35.65);
@@ -73,8 +75,8 @@ export const Outro: React.FC = () => {
 
       {/* Final line, synced word by word */}
       <div style={{ position: "absolute", left: 40, right: 40, top: 1060, display: "flex", justifyContent: "center", gap: "0 26px", fontFamily: FONT, fontWeight: 800, fontSize: 100, letterSpacing: "-0.05em", color: C.white }}>
-        {WORDS.slice(89, 93).map(([w, ws], i) => {
-          const s = springAt(t, ws - 0.06, { damping: 12, stiffness: 240 });
+        {WORDS.slice(121, 125).map(([w, ws], i) => {
+          const s = springAt(now, ws - 0.06, { damping: 12, stiffness: 240 });
           const label = i === 0 ? "Stop" : w;
           return (
             <span key={i} style={{ display: "inline-block", opacity: Math.min(1, s * 1.5), transform: `translateY(${(1 - s) * 60}px)`, color: i === 3 ? C.orange : C.white, filter: `blur(${(1 - Math.min(1, s)) * 8}px)` }}>

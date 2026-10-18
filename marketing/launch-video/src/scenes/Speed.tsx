@@ -2,18 +2,17 @@ import React from "react";
 import { AbsoluteFill } from "remotion";
 import { Keyboard, Mic } from "lucide-react";
 import { C, FONT, MONO } from "../theme";
-import { inExpo, inOut, rand, springAt, tween, useTime } from "../util";
+import { inExpo, inOut, springAt, tween, useTime } from "../util";
 
-// 14.1 → 18.0 s. "You talk three times faster than you type. So stop typing."
-const ROW = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"];
+// 13.6 → 15.9 s (scene authored at +0.48 s). "You talk three times faster than you type."
 
 export const Speed: React.FC = () => {
-  const t = useTime();
-  if (t < 14.0 || t > 18.1) return null;
+  // Authored against an earlier take; shift onto this voice-over.
+  const t = useTime() + 0.48;
+  if (t < 14.0 || t > 16.5) return null;
   const enter = tween(t, 14.05, 14.3);
-  const exit = tween(t, 17.85, 18.05, 0, 1, inExpo);
+  const exit = tween(t, 16.18, 16.38, 0, 1, inExpo);
   const bars = tween(t, 14.3, 15.6, 0, 1, inOut);
-  const barsOut = tween(t, 16.4, 16.6, 0, 1, inExpo);
   const three = springAt(t, 14.52, { damping: 10, stiffness: 200 });
   const typing = Math.round(40 * bars);
   const talking = Math.round(120 * bars);
@@ -33,7 +32,7 @@ export const Speed: React.FC = () => {
 
   return (
     <AbsoluteFill style={{ opacity: enter * (1 - exit), transform: `translateY(${-exit * 300}px)` }}>
-      <AbsoluteFill style={{ opacity: 1 - barsOut, transform: `translateY(${-barsOut * 160}px)` }}>
+      <AbsoluteFill>
         <div style={{ position: "absolute", left: 90, top: 190, fontFamily: MONO, fontSize: 26, letterSpacing: "0.16em", color: "#ffffff80" }}>WORDS PER MINUTE</div>
         <Bar y={270} icon={<Keyboard size={40} color="#ffffffaa" />} label="Typing" value={`${typing} wpm`} frac={bars * 0.32} color="#6b6c63" />
         <Bar y={450} icon={<Mic size={40} color={C.orangeHi} />} label="Talking" value={`${talking}+ wpm`} frac={bars * 0.96} color={`linear-gradient(90deg, ${C.orange}, ${C.orangeHi})`} glow />
@@ -43,32 +42,6 @@ export const Speed: React.FC = () => {
         </div>
       </AbsoluteFill>
 
-      {/* So stop typing: the keyboard falls apart. */}
-      {t > 16.4 ? (
-        <>
-          <div style={{ position: "absolute", left: 0, right: 0, top: 560, display: "flex", justifyContent: "center", gap: 10 }}>
-            {ROW.map((k, i) => {
-              const s = springAt(t, 16.42 + i * 0.015, { damping: 14, stiffness: 260 });
-              const ft = Math.max(0, t - (16.88 + rand(i) * 0.18));
-              const fy = 2400 * ft * ft;
-              const fx = (rand(i + 4) - 0.5) * 500 * ft;
-              const rot = (rand(i + 8) - 0.5) * 540 * ft;
-              return (
-                <div key={k} style={{ width: 84, height: 92, borderRadius: 16, background: "linear-gradient(180deg,#fbf9f4,#e4dfd3)", boxShadow: "inset 0 -6px 0 #cfc9bb, 0 14px 30px #0008", display: "flex", alignItems: "flex-end", padding: "0 0 12px 14px", fontFamily: FONT, fontWeight: 700, fontSize: 30, color: C.ink, opacity: Math.min(1, s * 2), transform: `translate(${fx}px, ${fy + (1 - s) * 60}px) rotate(${rot}deg)` }}>
-                  {k}
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ position: "absolute", left: 0, right: 0, top: 330, textAlign: "center", fontFamily: FONT, fontWeight: 800, fontSize: 170, letterSpacing: "-0.06em", lineHeight: 0.95, color: C.white }}>
-            <div style={{ opacity: tween(t, 16.82, 16.95), transform: `translateY(${(1 - tween(t, 16.82, 17.0)) * 50}px)` }}>stop</div>
-            <div style={{ position: "relative", display: "inline-block", marginTop: 210, opacity: tween(t, 17.22, 17.35), transform: `translateY(${(1 - tween(t, 17.22, 17.4)) * 50}px)` }}>
-              typing.
-              <div style={{ position: "absolute", left: -20, top: "52%", height: 22, borderRadius: 11, background: C.orange, width: `calc(${tween(t, 17.42, 17.62, 0, 1, inOut) * 100}% + ${tween(t, 17.42, 17.62, 0, 1, inOut) * 40}px)`, boxShadow: `0 0 40px ${C.orange}` }} />
-            </div>
-          </div>
-        </>
-      ) : null}
     </AbsoluteFill>
   );
 };

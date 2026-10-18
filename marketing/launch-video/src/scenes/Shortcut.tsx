@@ -7,7 +7,7 @@ import { Keycap } from "../components/Keycap";
 import { Win } from "../components/Win";
 import { inExpo, inOut, level, springAt, tween, useTime } from "../util";
 
-// 9.2 → 14.1 s. "Hold a shortcut. Talk. Boom. Polished text right where your cursor is."
+// 8.6 → 13.55 s (scene authored at +0.56 s). "Hold a shortcut. Talk. Boom. Polished text right where your cursor is."
 
 const Caret: React.FC<{ t: number; h?: number; color?: string }> = ({ t, h = 34, color = C.orange }) => (
   <span style={{ display: "inline-block", width: 3, height: h, background: color, marginLeft: 3, verticalAlign: "middle", opacity: Math.sin(t * 12) > -0.2 ? 1 : 0 }} />
@@ -91,7 +91,8 @@ const CodeWin: React.FC<{ t: number }> = ({ t }) => {
 };
 
 export const Shortcut: React.FC = () => {
-  const t = useTime();
+  // Authored against an earlier take; shift onto this voice-over.
+  const t = useTime() + 0.56;
   if (t < 9.15 || t > 14.2) return null;
   const amp = level(t);
 

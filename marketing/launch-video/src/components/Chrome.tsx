@@ -10,7 +10,7 @@ export const Background: React.FC = () => {
   const t = useTime();
   const a = level(t);
   // Glow colour follows the story: orange (problem) → blue (Dictum) → green (privacy) → blue.
-  const blue = tween(t, 7.8, 8.6) * (1 - tween(t, 31.9, 32.4) * 0.6) + tween(t, 35, 35.6) * 0.6;
+  const blue = tween(t, 7.3, 8.0) * (1 - tween(t, 41.9, 42.3) * 0.6) + tween(t, 43.1, 43.7) * 0.6;
   return (
     <AbsoluteFill style={{ background: `radial-gradient(120% 80% at 50% 40%, ${C.bg2} 0%, ${C.bg} 60%, #0b0c0a 100%)` }}>
       <div style={{ position: "absolute", width: 900, height: 900, borderRadius: "50%", left: 300 + Math.sin(t * 0.35) * 160, top: -250 + Math.cos(t * 0.27) * 120, background: C.blue, filter: "blur(200px)", opacity: 0.1 + 0.18 * blue + a * 0.06 }} />
@@ -77,7 +77,7 @@ const nullStart = (i: number) => {
 /** Brand bug: logo + repo URL along the top. */
 export const TopBar: React.FC = () => {
   const t = useTime();
-  const show = tween(t, 9.2, 9.6) * (1 - tween(t, 34.9, 35.2));
+  const show = tween(t, 8.6, 9.0) * (1 - tween(t, 42.9, 43.2));
   return (
     <>
       <div style={{ position: "absolute", left: 48, right: 48, top: 44, display: "flex", alignItems: "center", gap: 14, opacity: show, transform: `translateY(${(1 - show) * -20}px)` }}>
