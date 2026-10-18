@@ -24,7 +24,7 @@ The workflow prioritizes a complete Azure configuration, then PFX. Incomplete cr
 
 1. Match the version in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` and `src-tauri/tauri.conf.json`.
 2. Push to `main` and confirm Windows CI, including its dependency-audit job, succeeds for the commit being released.
-3. Open **Actions > Windows Release > Run workflow**, select `main` and run. A matching `v*` tag can also trigger the workflow. Do not reuse an existing published version.
+3. Open **Actions > Windows Release > Run workflow**, select `main` and run. Publication creates the version tag; pushing a tag does not launch another release build. Do not reuse an existing published version.
 4. Confirm the build succeeds, its signing mode matches the release notes, and the draft contains both installers, their Tauri `.sig` files, `latest.json` and `SHA256SUMS.txt`.
 5. Download the actual GitHub assets. Verify installer hashes and Tauri signatures against the existing updater public key. Exercise packaged native inference and perform the [Windows checklist](windows-release-checklist.md). Record outstanding acceptance checks rather than claiming unperformed tests passed.
 6. Review the draft notes: local model weights download separately; installers are unsigned in the current release; GPU, paid-cloud accounts and clean Windows installation/update coverage must be described accurately.

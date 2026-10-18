@@ -535,7 +535,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.4.0. Releases are built from a clean checkout by GitHub Actions through **Windows Release → Run workflow** or a matching `v*` tag. The workflow prepares a draft with the Windows installers, Tauri updater signatures and SHA-256 checksums; the maintainer publishes it after review. Windows publisher signing is optional and its status is disclosed. See the [release checklist](docs/windows-release-checklist.md) and [simple publication guide in French](docs/github-publication.fr.md).
+Dictum is version 1.4.0. Releases are built from a clean checkout by GitHub Actions through **Windows Release → Run workflow**. The workflow prepares a draft with the Windows installers, Tauri updater signatures and SHA-256 checksums; the maintainer publishes it after review. Publishing the draft creates the version tag without starting a second build. Windows publisher signing is optional and its status is disclosed. See the [release checklist](docs/windows-release-checklist.md) and [simple publication guide in French](docs/github-publication.fr.md).
 
 ## License and acknowledgements
 
