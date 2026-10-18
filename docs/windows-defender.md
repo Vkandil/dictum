@@ -12,13 +12,15 @@ The diagnosis is therefore:
 2. Windows 11 Smart App Control can block unknown unsigned code outright. Microsoft documents that unknown unsigned code is blocked by default when enforcement is active.
 3. A notification that names a threat (for example `Trojan:Win32/...` or `Behavior:Win32/...`) is a separate Defender antivirus verdict. Signing helps establish provenance but does not override such a verdict; the exact signed files must be submitted to Microsoft as false positives.
 
-## Permanent release fix
+## Current releases and future publisher signing
 
-Do all of the following for the next version:
+Dictum 1.4.0 can be released without an Authenticode certificate. The release workflow explicitly declares unsigned mode, retains Tauri updater signatures and publishes checksums. This does not remove SmartScreen warnings or Smart App Control restrictions. See the [current signing policy](code-signing-policy.md).
 
-1. Obtain a publicly trusted RSA Authenticode signing service or certificate. Follow [releasing.md](releasing.md); unsigned release jobs now fail closed.
+To add trusted publisher signing in the future:
+
+1. Obtain a publicly trusted RSA Authenticode signing service or certificate and configure it as described in [releasing.md](releasing.md). This is optional for GitHub distribution.
 2. Keep the same signing identity between releases so publisher reputation can accumulate. Always timestamp signatures.
-3. Sign the inner `dictum.exe` and both outer installers. The workflow verifies all three before checksums are published.
+3. Sign the inner `dictum.exe`, `dictum-cli.exe` and both outer installers. Signed mode verifies their signatures and timestamps before checksums are published.
 4. Submit all three signed files to the [Microsoft Security Intelligence portal](https://www.microsoft.com/wdsi/filesubmission), choose **Software developer** and **incorrectly detected/clean**, and include the Defender threat name if one was shown.
 5. Publish a new version rather than silently replacing 1.3.1. Every rebuild has a new file hash and must be scanned/submitted again.
 6. Test the downloaded GitHub assets, not only local build outputs, on clean Windows 10 and Windows 11 VMs.

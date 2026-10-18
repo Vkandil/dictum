@@ -33,7 +33,7 @@
 <p align="center"><sub>Free · Windows 10 &amp; 11 · installs in about a minute</sub></p>
 
 > [!IMPORTANT]
-> Dictum 1.0 is a Windows-only desktop application. The supported target is 64-bit Windows 10 or Windows 11. The repository intentionally does not build or publish packages for other operating systems.
+> Dictum is a Windows-only desktop application. The supported target is 64-bit Windows 10 or Windows 11. The repository intentionally does not build or publish packages for other operating systems.
 
 Dictum is a free, open-source Windows application that turns your voice into polished text wherever you type.
 
@@ -99,7 +99,7 @@ For the installed application:
 - Internet access for hosted inference or for the initial local-model download
 - A provider API key for hosted services; no account is needed for native local models
 
-Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Server as an official 1.0 target.
+Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Server as an official target.
 
 ## Download and install
 
@@ -113,7 +113,9 @@ Dictum does not support Windows 7, 32-bit Windows, Windows on ARM, or Windows Se
 
 Only download Dictum from the official GitHub repository. The release workflow produces Windows NSIS and MSI packages only.
 
-**Code signing policy:** Dictum is preparing an application to the [SignPath Foundation](https://signpath.org/) open-source signing program. The project has not yet been accepted; current downloads are not signed by SignPath Foundation. See the [code signing policy](docs/code-signing-policy.md) and [privacy policy](PRIVACY.md).
+**Windows publisher signature:** installers are not Authenticode-signed. Windows may show an unknown-publisher warning or block installation under Smart App Control or managed policies. Automatic updates still use the project's Tauri cryptographic signature. See the [code signing policy](docs/code-signing-policy.md), [Windows security guidance](docs/windows-defender.md), and [privacy policy](PRIVACY.md).
+
+**Local models:** model weights are downloaded separately from **On this computer** during setup. The installer includes the native engines; no Python, Docker or manually launched server is needed for the ten managed local presets. See [local models and hardware requirements](docs/local-models.md).
 
 If a public release has not been published yet, use [Build from source](#build-from-source).
 
@@ -342,7 +344,7 @@ The React interface communicates with a Rust backend through Tauri commands and 
 │   └── src/bin/dictum-cli.rs    Windows command-line client
 ├── examples/providers/          Example provider manifests
 ├── docs/                        Windows release documentation
-└── .github/workflows/           Windows CI and signed release automation
+└── .github/workflows/           Windows CI and release automation
 ```
 
 ## Build from source
@@ -400,7 +402,7 @@ src-tauri\target\release\bundle\nsis\
 src-tauri\target\release\bundle\msi\
 ```
 
-The published v1.3.1 installers are unsigned and can trigger SmartScreen or Smart App Control. Dictum v1.3.2 is prepared but will be published only after Authenticode signing is configured. The release workflow on `main` refuses to publish Windows builds unless `dictum.exe`, the NSIS installer, and the MSI have valid, timestamped Authenticode signatures. Automatic updates use a separate Tauri signature. See [docs/releasing.md](docs/releasing.md) and [docs/windows-defender.md](docs/windows-defender.md).
+Windows installers are distributed without an Authenticode publisher signature and can trigger SmartScreen or Smart App Control. Automatic updates use the existing Tauri signature, and installer checksums are published with each release. Authenticode signing is optional; when configured, it is verified before publication. See [docs/releasing.md](docs/releasing.md) and [docs/windows-defender.md](docs/windows-defender.md).
 
 ## CLI
 
@@ -418,7 +420,7 @@ Examples:
 .\src-tauri\target\release\dictum-cli.exe config-path
 ```
 
-The 1.0 CLI accepts PCM WAV input and prints the transcript to standard output. It reads the same non-secret settings and Windows credentials as the desktop app. `OPENROUTER_API_KEY` and `MISTRAL_API_KEY` can override Credential Manager for ephemeral automation.
+The CLI accepts PCM WAV input and prints the transcript to standard output. It reads the same non-secret settings and Windows credentials as the desktop app. `OPENROUTER_API_KEY` and `MISTRAL_API_KEY` can override Credential Manager for ephemeral automation.
 
 To isolate CLI data during a test:
 
@@ -533,7 +535,7 @@ Report security vulnerabilities privately using the process in [SECURITY.md](SEC
 
 ## Release status
 
-Dictum is version 1.3.2. Releases are built from a clean checkout by GitHub Actions when a `v*` tag is pushed; see [the Windows release checklist](docs/windows-release-checklist.md). The already-published v1.3.1 artifacts are unsigned; v1.3.2 is intentionally not published until Authenticode signing is configured and verified. Until a signed successor is published, verify the v1.3.1 SHA-256 checksums and treat any named Defender threat as a verdict that must be investigated, not as a SmartScreen warning to bypass.
+Dictum is version 1.4.0. Releases are built from a clean checkout by GitHub Actions through **Windows Release → Run workflow**. The workflow prepares a draft with the Windows installers, Tauri updater signatures and SHA-256 checksums; the maintainer publishes it after review. Publishing the draft creates the version tag without starting a second build. Windows publisher signing is optional and its status is disclosed. See the [release checklist](docs/windows-release-checklist.md) and [simple publication guide in French](docs/github-publication.fr.md).
 
 ## License and acknowledgements
 

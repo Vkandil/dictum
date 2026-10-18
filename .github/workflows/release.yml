@@ -1,8 +1,6 @@
 name: Windows Release
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -11,6 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -20,7 +19,28 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./.github/actions/setup-native
       - run: npm ci
-      - name: Configure required Windows code signing
+      - name: Check release version and protect published packages
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match application version v$version"
+          }
+          $existing = gh release view "v$version" --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0 -and -not ($existing | ConvertFrom-Json).isDraft) {
+            throw "v$version is already public. Bump the version instead of replacing published packages."
+          }
+      - name: Check updater signing key
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY is required. Keep the existing key so installed versions can verify updates.'
+          }
+      - name: Configure Windows publisher signing when available
         id: signing
         shell: pwsh
         env:
@@ -33,6 +53,7 @@ jobs:
           ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
           ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
         run: |
+          $ErrorActionPreference = 'Stop'
           $hasPfx = $env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD
           $artifactValues = @(
             $env:AZURE_CLIENT_ID,
@@ -43,6 +64,8 @@ jobs:
             $env:ARTIFACT_SIGNING_PROFILE
           )
           $hasArtifactSigning = ($artifactValues | Where-Object { -not $_ }).Count -eq 0
+          $hasPartialSigning = $env:WINDOWS_CERTIFICATE -or $env:WINDOWS_CERTIFICATE_PASSWORD -or
+            ($artifactValues | Where-Object { $_ }).Count -gt 0
 
           if ($hasArtifactSigning) {
             if ($env:ARTIFACT_SIGNING_ENDPOINT -notmatch '^https://[a-z0-9.-]+/?$') {
@@ -53,6 +76,7 @@ jobs:
               throw 'Artifact Signing account and profile names contain unsupported characters'
             }
             cargo install artifact-signing-cli --version 0.11.0 --locked
+            if ($LASTEXITCODE -ne 0) { throw 'Artifact signing tool installation failed' }
             $signCommand = "artifact-signing-cli -e $env:ARTIFACT_SIGNING_ENDPOINT -a $env:ARTIFACT_SIGNING_ACCOUNT -c $env:ARTIFACT_SIGNING_PROFILE -d Dictum %1"
             $config = @{ bundle = @{ windows = @{ signCommand = $signCommand } } } | ConvertTo-Json -Depth 4
             Set-Content -Path src-tauri/tauri.windows-signing.conf.json -Value $config
@@ -75,15 +99,18 @@ jobs:
             $config = @{ bundle = @{ windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } | ConvertTo-Json -Depth 4
             Set-Content -Path src-tauri/tauri.windows-signing.conf.json -Value $config
             'mode=Authenticode PFX' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } elseif ($hasPartialSigning) {
+            throw 'Windows signing credentials are incomplete. Complete or remove the unused signing configuration; do not silently downgrade a configured signer.'
           } else {
-            throw @'
-          Refusing to publish unsigned Windows binaries.
-          Configure either Azure Artifact Signing (AZURE_* secrets plus ARTIFACT_SIGNING_* variables)
-          or the WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD secrets.
-          See docs/releasing.md.
-          '@
+            'mode=unsigned' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            'config_args=' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            'notice=Windows installers do not have an Authenticode publisher signature. Windows may warn or block installation. Automatic updates remain protected by the existing Tauri signing key.' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            '## Windows publisher signing: unsigned' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            'No Windows certificate is configured. The release is built without Authenticode; Tauri updater signatures remain required.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 0
           }
           'config_args=--config src-tauri/tauri.windows-signing.conf.json' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          'notice=Windows installers have a timestamped Authenticode publisher signature. Automatic updates are also protected by the Tauri signing key.' | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Release signing mode: $((Get-Content $env:GITHUB_OUTPUT | Select-String '^mode=').Line.Substring(5))"
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -96,21 +123,41 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Dictum v__VERSION__ for Windows
-          releaseBody: Download the NSIS installer or MSI package below.
+          releaseBody: |
+            Download the NSIS installer (.exe, recommended) or MSI package below. Model weights are downloaded separately inside Dictum.
+
+            ${{ steps.signing.outputs.notice }}
+
+            See the [local model guide](https://github.com/Vkandil/dictum/blob/main/docs/local-models.md), [privacy policy](https://github.com/Vkandil/dictum/blob/main/PRIVACY.md), and [code signing policy](https://github.com/Vkandil/dictum/blob/main/docs/code-signing-policy.md).
           releaseDraft: true
           prerelease: false
           args: --config '{"bundle":{"createUpdaterArtifacts":true}}' ${{ steps.signing.outputs.config_args }}
-      - name: Verify every distributed Windows signature
+      - name: Verify Windows packages and declared signing mode
         shell: pwsh
+        env:
+          WINDOWS_SIGNING_MODE: ${{ steps.signing.outputs.mode }}
         run: |
           $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
           $installers = @(Get-ChildItem src-tauri\target\release\bundle -Recurse -File | Where-Object {
             $_.Name -like "Dictum_$version*" -and $_.Extension -in @('.exe', '.msi')
           })
           if ($installers.Count -ne 2) { throw "Expected one NSIS and one MSI artifact, found $($installers.Count)" }
-          $files = @((Get-Item src-tauri\target\release\dictum.exe)) + $installers
+          $files = @(
+            (Get-Item src-tauri\target\release\dictum.exe),
+            (Get-Item src-tauri\target\release\dictum-cli.exe)
+          ) + $installers
+          foreach ($name in @('onnxruntime.dll', 'onnxruntime_providers_shared.dll', 'sherpa-onnx-c-api.dll', 'sherpa-onnx-cxx-api.dll')) {
+            if (-not (Test-Path "src-tauri\native-runtime\$name")) { throw "Missing native speech runtime: $name" }
+          }
           foreach ($file in $files) {
             $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($env:WINDOWS_SIGNING_MODE -eq 'unsigned') {
+              if ($signature.Status -ne 'NotSigned') {
+                throw "Unexpected Authenticode status on $($file.Name): $($signature.Status)"
+              }
+              Write-Host "$($file.Name): no Authenticode publisher signature (declared unsigned release)"
+              continue
+            }
             if ($signature.Status -ne 'Valid') {
               throw "Invalid Authenticode signature on $($file.Name): $($signature.Status) $($signature.StatusMessage)"
             }
@@ -118,6 +165,12 @@ jobs:
               throw "Missing trusted timestamp on $($file.Name)"
             }
             Write-Host "$($file.Name): signed by $($signature.SignerCertificate.Subject)"
+          }
+          foreach ($installer in $installers) {
+            $sig = "$($installer.FullName).sig"
+            if (-not (Test-Path $sig) -or (Get-Item $sig).Length -eq 0) {
+              throw "Missing Tauri updater signature for $($installer.Name)"
+            }
           }
       - name: Publish SHA-256 checksums
         shell: pwsh

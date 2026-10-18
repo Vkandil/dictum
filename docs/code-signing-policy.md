@@ -2,18 +2,23 @@
 
 ## Current status
 
-Dictum is preparing an application to the [SignPath Foundation](https://signpath.org/) open-source signing program. Acceptance has not been granted, and no Dictum release is currently signed by SignPath Foundation. This page does not claim sponsorship or approval. The existing v1.3.1 packages are not Authenticode-signed; the v1.4.0 release is a draft awaiting a signing configuration and release acceptance checks.
+Dictum distributes Windows installers without an Authenticode publisher certificate. This is intentional and is disclosed on the download page and in release notes. Windows may show an unknown-publisher warning, and Smart App Control or an organization's policy may block installation.
 
-## Proposed signing process after acceptance
+The SignPath Foundation application was not accepted. Dictum does not use SignPath signing and does not claim its sponsorship. Purchasing a Windows certificate is not a prerequisite for downloading models, using Dictum or preparing a GitHub release.
 
-The project will integrate SignPath with its public GitHub Actions build workflow. Signing requests will cover Dictum's own Windows application, CLI and installers built from the project source. Third-party libraries retain their upstream signing status and licence notices; they will not be re-signed as if they were Dictum's own binaries.
+## Release integrity
 
-- Maintainer, committer and reviewer: [Vkandil](https://github.com/Vkandil).
-- Proposed release-signing approver: [Vkandil](https://github.com/Vkandil).
-- External contributions to a signed release must be reviewed by the maintainer. Repository and signing access must use multi-factor authentication.
-- Each release-signing request must receive manual approval. Installer signatures, timestamps, update signatures and checksums must be checked before publication.
+- Official packages are built from the public repository by GitHub Actions and published at [GitHub Releases](https://github.com/Vkandil/dictum/releases).
+- Each release includes SHA-256 checksums for its NSIS and MSI installers.
+- Automatic updates retain the existing Tauri cryptographic signatures. These allow an installed copy of Dictum to verify an update; they are separate from Windows Authenticode and do not establish Windows publisher reputation.
+- The maintainer, [Vkandil](https://github.com/Vkandil), reviews the release draft before publishing it.
+- Third-party native libraries retain their upstream licensing and signing status. Their notices are included in the Windows packages.
 
-If accepted, the signing attribution will be: "Free code signing provided by SignPath.io, certificate by SignPath Foundation". The current preparation status will be updated only after acceptance and successful integration.
+If an Authenticode identity is configured later, the release workflow uses it and requires valid timestamped signatures. An incomplete or failing signing configuration fails the job instead of silently producing unsigned files. The Tauri updater key is required in both modes and must not be replaced for routine releases.
+
+## Windows security messages
+
+A publisher warning and a named antivirus detection are different. Check the exact file and its release checksum. Do not disable antivirus protection to run Dictum. A named detection should be investigated and, where appropriate, submitted to Microsoft for review. See [Windows Defender and SmartScreen](windows-defender.md).
 
 ## Privacy and downloads
 
